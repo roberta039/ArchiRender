@@ -1,4 +1,4 @@
+stripe==11.7.0
 streamlit==1.26.0
-stripe==12.6.0
 supabase-py==1.0.2
 sendgrid==6.9.1
