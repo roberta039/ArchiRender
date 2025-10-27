@@ -1,6 +1,27 @@
-streamlit==1.26.0
-stripe==13.0.1
-rich==14.2.0
-markdown-it-py==4.0.0
-mdurl==0.1.2
-pygments==2.19.2
+# Web Framework
+streamlit>=1.28.0
+
+# Data Processing
+pandas>=1.5.0
+numpy>=1.21.0
+openpyxl>=3.0.0      # Pentru export Excel
+python-docx>=0.8.0   # Pentru documente Word
+
+# Email & Notifications
+smtplib>=0.0.1       # Built-in Python
+email>=3.0.0         # Built-in Python
+
+# File Operations
+requests>=2.25.0     # Pentru descărcare link-uri
+python-magic>=0.4.0  # Pentru detectare tip fișiere
+
+# Database (opțional)
+sqlalchemy>=1.4.0
+psycopg2-binary>=2.9.0
+
+# Environment Variables
+python-dotenv>=0.19.0
+
+# Utilities
+python-dateutil>=2.8.0
+pytz>=2021.0
