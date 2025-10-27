@@ -12,8 +12,6 @@ import sqlite3
 from sqlite3 import Error
 import time
 from dotenv import load_dotenv
-import io
-import base64
 
 # Încarcă variabilele de mediu
 load_dotenv()
@@ -195,6 +193,13 @@ class RenderingService:
             • Număr randări: {order_data['render_count']}
             • Software: {order_data['software']}
             
+            💳 DETALII PLATĂ:
+            • Beneficiar: STEFANIA BOSTIOG
+            • IBAN: RO49BTRL01301202XXXXXXX
+            • Banca: Transilvania
+            • Sumă: {order_data['price_euro']} EUR
+            • PayPal: bostiogstefania@gmail.com
+            
             ⏰ DETALII LIVRARE:
             • Timp estimat: {order_data['estimated_days']} zile lucrătoare
             • Data estimată livrare: {delivery_date.strftime('%d.%m.%Y')}
@@ -323,23 +328,6 @@ class RenderingService:
         except Error as e:
             st.error(f"❌ Eroare la actualizarea comenzii: {e}")
             return False
-    
-    def mark_payment_completed(self, order_id):
-        """Marchează plata ca completată"""
-        try:
-            conn = sqlite3.connect('rendering_orders.db')
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE orders 
-                SET payment_status = 'completed', payment_date = CURRENT_TIMESTAMP
-                WHERE id = ?
-            ''', (order_id,))
-            conn.commit()
-            conn.close()
-            return True
-        except Error as e:
-            st.error(f"❌ Eroare la actualizarea plății: {e}")
-            return False
 
 def main():
     st.markdown('<h1 class="main-header">🏗️ Rendering Service ARH</h1>', unsafe_allow_html=True)
@@ -376,150 +364,208 @@ def main():
     if menu == "📝 Comandă Rendering":
         st.header("🎨 Comandă Rendering Nouă")
         
-        with st.form("comanda_rendering", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("👤 Date Personale")
-                student_name = st.text_input("Nume complet*")
-                email = st.text_input("Email*")
-                contact_phone = st.text_input("Număr de telefon*")
-                faculty = st.text_input("Facultate/Universitate")
+        # Folosim session state pentru a gestiona starea formularului
+        if 'order_submitted' not in st.session_state:
+            st.session_state.order_submitted = False
+        if 'form_data' not in st.session_state:
+            st.session_state.form_data = {}
+        
+        if not st.session_state.order_submitted:
+            # FORMULAR INITIAL
+            with st.form("comanda_rendering"):
+                col1, col2 = st.columns(2)
                 
-                st.subheader("📤 Încarcă Proiectul")
-                upload_option = st.radio("Alege metoda de upload:", 
-                                       ["📎 Încarcă fișier", "🔗 Link extern"])
+                with col1:
+                    st.subheader("👤 Date Personale")
+                    student_name = st.text_input("Nume complet*")
+                    email = st.text_input("Email*")
+                    contact_phone = st.text_input("Număr de telefon*")
+                    faculty = st.text_input("Facultate/Universitate")
+                    
+                    st.subheader("📤 Încarcă Proiectul")
+                    upload_option = st.radio("Alege metoda de upload:", 
+                                           ["📎 Încarcă fișier", "🔗 Link extern"])
+                    
+                    if upload_option == "📎 Încarcă fișier":
+                        project_file = st.file_uploader("Încarcă fișierul proiectului", 
+                                                      type=['skp', 'rvt', 'max', 'blend', 'dwg', 'zip', 'rar'],
+                                                      help="Suportă: SketchUp, Revit, 3ds Max, Blender, etc.")
+                        project_link = None
+                    else:
+                        project_link = st.text_input("Link descărcare proiect*", 
+                                                   placeholder="https://drive.google.com/... sau Wetransfer, Dropbox, etc.")
+                        project_file = None
                 
-                if upload_option == "📎 Încarcă fișier":
-                    project_file = st.file_uploader("Încarcă fișierul proiectului", 
-                                                  type=['skp', 'rvt', 'max', 'blend', 'dwg', 'zip', 'rar'],
-                                                  help="Suportă: SketchUp, Revit, 3ds Max, Blender, etc.")
-                    project_link = None
-                else:
-                    project_link = st.text_input("Link descărcare proiect*", 
-                                               placeholder="https://drive.google.com/... sau Wetransfer, Dropbox, etc.")
-                    project_file = None
-            
-            with col2:
-                st.subheader("🎯 Specificații Rendering")
-                software = st.selectbox(
-                    "Software utilizat*",
-                    ["SketchUp", "Revit", "3ds Max", "Blender", "Archicad", "Lumion", "Altul"]
-                )
+                with col2:
+                    st.subheader("🎯 Specificații Rendering")
+                    software = st.selectbox(
+                        "Software utilizat*",
+                        ["SketchUp", "Revit", "3ds Max", "Blender", "Archicad", "Lumion", "Altul"]
+                    )
+                    
+                    resolution = st.selectbox(
+                        "Rezoluție rendering*",
+                        ["2-4K", "4-6K", "8K+"]
+                    )
+                    
+                    render_count = st.slider("Număr de randări*", 1, 20, 1, 
+                                           help="1-3 randări = 3 zile, 4-7 = 6 zile, 8-10 = 9 zile, etc.")
+                    
+                    is_urgent = st.checkbox("🚀 Comandă urgentă (+50% cost)", 
+                                          help="Timp de procesare redus la jumătate")
+                    
+                    requirements = st.text_area("Cerințe specifice rendering", 
+                                              placeholder="Unghi cameră, iluminare, materiale, stil preferat, etc.")
                 
-                resolution = st.selectbox(
-                    "Rezoluție rendering*",
-                    ["2-4K", "4-6K", "8K+"]
-                )
-                
-                render_count = st.slider("Număr de randări*", 1, 20, 1, 
-                                       help="1-3 randări = 3 zile, 4-7 = 6 zile, 8-10 = 9 zile, etc.")
-                
-                is_urgent = st.checkbox("🚀 Comandă urgentă (+50% cost)", 
-                                      help="Timp de procesare redus la jumătate")
-                
-                requirements = st.text_area("Cerințe specifice rendering", 
-                                          placeholder="Unghi cameră, iluminare, materiale, stil preferat, etc.")
-            
-            # Calcul preț și timp
-            if resolution and render_count:
-                price_euro, estimated_days = service.calculate_price_and_days(
-                    resolution, render_count, is_urgent
-                )
-                
-                delivery_date = datetime.now() + timedelta(days=estimated_days)
-                
-                st.markdown("---")
-                st.markdown(f"""
-                <div class="price-estimate">
-                    <h3>💰 Total: {price_euro} EUR</h3>
-                    <p><strong>⏰ Timp de livrare:</strong> {estimated_days} zile lucrătoare</p>
-                    <p><strong>📅 Data estimată:</strong> {delivery_date.strftime('%d %B %Y')}</p>
-                    <p><strong>🎯 Rezoluție:</strong> {resolution}</p>
-                    <p><strong>🖼️ Randări:</strong> {render_count}</p>
-                    <p><strong>⚡ Urgent:</strong> {'Da (+50%)' if is_urgent else 'Nu'}</p>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            st.markdown("** * Câmpuri obligatorii*")
-            
-            submitted = st.form_submit_button("🚀 Continuă la Plată")
-            
-            if submitted:
-                if not all([student_name, email, contact_phone, software, resolution]):
-                    st.error("⚠️ Te rog completează toate câmpurile obligatorii!")
-                elif upload_option == "📎 Încarcă fișier" and project_file is None:
-                    st.error("⚠️ Te rog încarcă fișierul proiectului!")
-                elif upload_option == "🔗 Link extern" and not project_link:
-                    st.error("⚠️ Te rog adaugă link-ul de descărcare!")
-                else:
-                    # Secțiunea de plată
+                # Calcul preț și timp
+                if resolution and render_count:
+                    price_euro, estimated_days = service.calculate_price_and_days(
+                        resolution, render_count, is_urgent
+                    )
+                    
+                    delivery_date = datetime.now() + timedelta(days=estimated_days)
+                    
                     st.markdown("---")
                     st.markdown(f"""
-                    <div class="payment-box">
-                        <h2>💳 Finalizează Comanda</h2>
-                        <h3>Total de plată: {price_euro} EUR</h3>
-                        
-                        <h4>📋 Detalii plată:</h4>
-                        <p><strong>Transfer bancar:</strong></p>
-                        <p>• Beneficiar: STEFANIA BOSTIOG</p>
-                        <p>• IBAN: RO49BTRL01301202XXXXXXX</p>
-                        <p>• Banca: Transilvania</p>
-                        <p>• Sumă: {price_euro} EUR</p>
-                        <p>• Descriere: Rendering #{student_name[:10]}</p>
-                        
-                        <p><strong>Sau PayPal:</strong> bostiogstefania@gmail.com</p>
+                    <div class="price-estimate">
+                        <h3>💰 Total: {price_euro} EUR</h3>
+                        <p><strong>⏰ Timp de livrare:</strong> {estimated_days} zile lucrătoare</p>
+                        <p><strong>📅 Data estimată:</strong> {delivery_date.strftime('%d %B %Y')}</p>
+                        <p><strong>🎯 Rezoluție:</strong> {resolution}</p>
+                        <p><strong>🖼️ Randări:</strong> {render_count}</p>
+                        <p><strong>⚡ Urgent:</strong> {'Da (+50%)' if is_urgent else 'Nu'}</p>
                     </div>
                     """, unsafe_allow_html=True)
-                    
-                    # Confirmare plată
-                    payment_confirmed = st.checkbox("✅ Confirm că am efectuat plata")
-                    
-                    if st.button("📨 Finalizează Comanda și Primește Chitanța"):
-                        if not payment_confirmed:
-                            st.error("⚠️ Te rog confirmă efectuarea plății!")
-                        else:
-                            with st.spinner("Se procesează comanda și se trimite chitanța..."):
-                                order_data = {
-                                    'student_name': student_name,
-                                    'email': email,
-                                    'project_file': project_file.name if project_file else None,
-                                    'project_link': project_link,
-                                    'software': software,
-                                    'resolution': resolution,
-                                    'render_count': render_count,
-                                    'deadline': delivery_date.strftime("%Y-%m-%d"),
-                                    'requirements': requirements,
-                                    'price_euro': price_euro,
-                                    'estimated_days': estimated_days,
-                                    'is_urgent': is_urgent,
-                                    'contact_phone': contact_phone,
-                                    'faculty': faculty
-                                }
+                
+                st.markdown("** * Câmpuri obligatorii*")
+                
+                submitted = st.form_submit_button("🚀 Continuă la Plată")
+                
+                if submitted:
+                    if not all([student_name, email, contact_phone, software, resolution]):
+                        st.error("⚠️ Te rog completează toate câmpurile obligatorii!")
+                    elif upload_option == "📎 Încarcă fișier" and project_file is None:
+                        st.error("⚠️ Te rog încarcă fișierul proiectului!")
+                    elif upload_option == "🔗 Link extern" and not project_link:
+                        st.error("⚠️ Te rog adaugă link-ul de descărcare!")
+                    else:
+                        # Salvează datele în session state
+                        st.session_state.form_data = {
+                            'student_name': student_name,
+                            'email': email,
+                            'contact_phone': contact_phone,
+                            'faculty': faculty,
+                            'project_file': project_file.name if project_file else None,
+                            'project_link': project_link,
+                            'software': software,
+                            'resolution': resolution,
+                            'render_count': render_count,
+                            'is_urgent': is_urgent,
+                            'requirements': requirements,
+                            'price_euro': price_euro,
+                            'estimated_days': estimated_days,
+                            'delivery_date': delivery_date
+                        }
+                        st.session_state.order_submitted = True
+                        st.rerun()
+        
+        else:
+            # PAGINA DE PLATĂ (după submit formular)
+            form_data = st.session_state.form_data
+            
+            st.markdown(f"""
+            <div class="payment-box">
+                <h2>💳 Finalizează Comanda</h2>
+                <h3>Total de plată: {form_data['price_euro']} EUR</h3>
+                
+                <h4>📋 Detalii plată:</h4>
+                <p><strong>Transfer bancar:</strong></p>
+                <p>• Beneficiar: STEFANIA BOSTIOG</p>
+                <p>• IBAN: RO49BTRL01301202XXXXXXX</p>
+                <p>• Banca: Transilvania</p>
+                <p>• Sumă: {form_data['price_euro']} EUR</p>
+                <p>• Descriere: Rendering #{form_data['student_name'][:10]}</p>
+
+                <p><strong>Sau PayPal:</strong> bostiogstefania@gmail.com</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Afișează detalii comanda
+            st.subheader("📋 Detalii Comanda")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**👤 Nume:** {form_data['student_name']}")
+                st.write(f"**📧 Email:** {form_data['email']}")
+                st.write(f"**📱 Telefon:** {form_data['contact_phone']}")
+                st.write(f"**🏫 Facultate:** {form_data['faculty']}")
+            with col2:
+                st.write(f"**🛠️ Software:** {form_data['software']}")
+                st.write(f"**🎯 Rezoluție:** {form_data['resolution']}")
+                st.write(f"**🖼️ Randări:** {form_data['render_count']}")
+                st.write(f"**⚡ Urgent:** {'Da' if form_data['is_urgent'] else 'Nu'}")
+            
+            # Confirmare plată
+            payment_confirmed = st.checkbox("✅ Confirm că am efectuat plata")
+            
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                if st.button("🔄 Modifică Comanda"):
+                    st.session_state.order_submitted = False
+                    st.rerun()
+            
+            with col2:
+                if st.button("📨 Finalizează Comanda și Primește Chitanța", type="primary"):
+                    if not payment_confirmed:
+                        st.error("⚠️ Te rog confirmă efectuarea plății!")
+                    else:
+                        with st.spinner("Se procesează comanda și se trimite chitanța..."):
+                            order_data = {
+                                'student_name': form_data['student_name'],
+                                'email': form_data['email'],
+                                'project_file': form_data['project_file'],
+                                'project_link': form_data['project_link'],
+                                'software': form_data['software'],
+                                'resolution': form_data['resolution'],
+                                'render_count': form_data['render_count'],
+                                'deadline': form_data['delivery_date'].strftime("%Y-%m-%d"),
+                                'requirements': form_data['requirements'],
+                                'price_euro': form_data['price_euro'],
+                                'estimated_days': form_data['estimated_days'],
+                                'is_urgent': form_data['is_urgent'],
+                                'contact_phone': form_data['contact_phone'],
+                                'faculty': form_data['faculty']
+                            }
+                            
+                            order_id = service.add_order(order_data)
+                            if order_id:
+                                st.success(f"🎉 Comanda #{order_id} a fost finalizată cu succes!")
+                                st.balloons()
                                 
-                                order_id = service.add_order(order_data)
-                                if order_id:
-                                    st.success(f"🎉 Comanda #{order_id} a fost finalizată cu succes!")
-                                    st.balloons()
-                                    
-                                    # Afișează countdown
-                                    st.markdown(f"""
-                                    <div class="countdown">
-                                        <h3>⏳ Timp rămas până la livrare</h3>
-                                        <h2>{estimated_days} zile lucrătoare</h2>
-                                        <p>Data estimată: {delivery_date.strftime('%d %B %Y')}</p>
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                    
-                                    st.info(f"""
-                                    **📧 Ce urmează:**
-                                    1. ✅ Ai primit chitanța pe email
-                                    2. 📞 Vei fi contactat în 24h pentru confirmare
-                                    3. 🚀 Vom începe procesarea rendering-ului
-                                    4. 📥 Vei primi link de download la finalizare
-                                    
-                                    **📞 Pentru întrebări:** bostiogstefania@gmail.com
-                                    """)
+                                # Afișează countdown
+                                st.markdown(f"""
+                                <div class="countdown">
+                                    <h3>⏳ Timp rămas până la livrare</h3>
+                                    <h2>{form_data['estimated_days']} zile lucrătoare</h2>
+                                    <p>Data estimată: {form_data['delivery_date'].strftime('%d %B %Y')}</p>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                
+                                st.info(f"""
+                                **📧 Ce urmează:**
+                                1. ✅ Ai primit chitanța pe email
+                                2. 📞 Vei fi contactat în 24h pentru confirmare
+                                3. 🚀 Vom începe procesarea rendering-ului
+                                4. 📥 Vei primi link de download la finalizare
+                                
+                                **📞 Pentru întrebări:** bostiogstefania@gmail.com
+                                """)
+                                
+                                # Reset form
+                                st.session_state.order_submitted = False
+                                st.session_state.form_data = {}
+
+    # Restul codului rămâne la fel...
+    # [Secțiunile pentru Dashboard, Administrare, Prețuri, Contact]
     
     # Secțiunea prețuri
     elif menu == "💰 Prețuri & Termene":
@@ -719,6 +765,11 @@ def main():
             **📱 Telefon:** +40 743 678 901
             **💬 WhatsApp:** +40 743 678 901
             
+            **🏦 Detalii Bancare:**
+            • Beneficiar: STEFANIA BOSTIOG
+            • IBAN: RO49BTRL01301202XXXXXXX
+            • Banca: Transilvania
+
             **🕒 Program:**
             Luni - Vineri: 9:00 - 18:00
             Sâmbătă: 10:00 - 14:00
