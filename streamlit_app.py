@@ -37,6 +37,7 @@ st.markdown("""
     .status-processing { background-color: #cce5ff; padding: 10px; border-radius: 5px; }
     .status-completed { background-color: #d4edda; padding: 10px; border-radius: 5px; }
     .urgent { border-left: 5px solid #dc3545; padding-left: 10px; }
+    .deleted { background-color: #f8d7da; padding: 10px; border-radius: 5px; text-decoration: line-through; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -72,7 +73,10 @@ class RenderingService:
                     estimated_days INTEGER NOT NULL,
                     is_urgent BOOLEAN DEFAULT FALSE,
                     contact_phone TEXT,
-                    faculty TEXT
+                    faculty TEXT,
+                    is_deleted BOOLEAN DEFAULT FALSE,
+                    deleted_at TIMESTAMP,
+                    deletion_reason TEXT
                 )
             ''')
             conn.commit()
@@ -289,21 +293,33 @@ class RenderingService:
         except Exception as e:
             st.warning(f"⚠️ Emailurile nu au putut fi trimise: {e}")
     
-    def get_orders(self, status=None):
+    def get_orders(self, status=None, include_deleted=False):
         """Returnează toate comenzile"""
         try:
             conn = sqlite3.connect('rendering_orders.db')
             
             if status:
-                df = pd.read_sql_query(
-                    "SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC", 
-                    conn, params=[status]
-                )
+                if include_deleted:
+                    df = pd.read_sql_query(
+                        "SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC", 
+                        conn, params=[status]
+                    )
+                else:
+                    df = pd.read_sql_query(
+                        "SELECT * FROM orders WHERE status = ? AND is_deleted = 0 ORDER BY created_at DESC", 
+                        conn, params=[status]
+                    )
             else:
-                df = pd.read_sql_query(
-                    "SELECT * FROM orders ORDER BY created_at DESC", 
-                    conn
-                )
+                if include_deleted:
+                    df = pd.read_sql_query(
+                        "SELECT * FROM orders ORDER BY created_at DESC", 
+                        conn
+                    )
+                else:
+                    df = pd.read_sql_query(
+                        "SELECT * FROM orders WHERE is_deleted = 0 ORDER BY created_at DESC", 
+                        conn
+                    )
             
             conn.close()
             return df
@@ -335,6 +351,59 @@ class RenderingService:
             return True
         except Error as e:
             st.error(f"❌ Eroare la actualizarea comenzii: {e}")
+            return False
+
+    def delete_order(self, order_id, reason=""):
+        """Marchează o comandă ca ștearsă"""
+        try:
+            conn = sqlite3.connect('rendering_orders.db')
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                UPDATE orders 
+                SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP, deletion_reason = ?
+                WHERE id = ?
+            ''', (reason, order_id))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Error as e:
+            st.error(f"❌ Eroare la ștergerea comenzii: {e}")
+            return False
+
+    def restore_order(self, order_id):
+        """Restabilește o comandă ștearsă"""
+        try:
+            conn = sqlite3.connect('rendering_orders.db')
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                UPDATE orders 
+                SET is_deleted = 0, deleted_at = NULL, deletion_reason = NULL
+                WHERE id = ?
+            ''', (order_id,))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Error as e:
+            st.error(f"❌ Eroare la restabilirea comenzii: {e}")
+            return False
+
+    def permanently_delete_order(self, order_id):
+        """Șterge definitiv o comandă din baza de date"""
+        try:
+            conn = sqlite3.connect('rendering_orders.db')
+            cursor = conn.cursor()
+            
+            cursor.execute('DELETE FROM orders WHERE id = ?', (order_id,))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Error as e:
+            st.error(f"❌ Eroare la ștergerea definitivă a comenzii: {e}")
             return False
 
 def main():
@@ -618,9 +687,6 @@ def main():
                                 st.session_state.form_data = {}
                                 st.session_state.upload_option = "📎 Încarcă fișier"
 
-    # Restul codului rămâne la fel...
-    # [Secțiunile pentru Prețuri, Administrare, Contact]
-
     # Secțiunea prețuri
     elif menu == "💰 Prețuri & Termene":
         st.header("💰 Prețuri & Termene de Livrare")
@@ -683,161 +749,244 @@ def main():
             
             # Submeniu în administrare
             admin_menu = st.radio("Alege secțiunea:", 
-                                ["📊 Dashboard Comenzi", "🎯 Gestionare Comenzi", "📈 Statistici"],
+                                ["📊 Dashboard Comenzi", "🎯 Gestionare Comenzi", "📈 Statistici", "🗑️ Comenzi Șterse"],
                                 horizontal=True)
             
-            orders_df = service.get_orders()
-            
-            if not orders_df.empty:
-                if admin_menu == "📊 Dashboard Comenzi":
-                    # DASHBOARD în administrare
-                    st.subheader("📊 Dashboard Comenzi")
+            if admin_menu == "🗑️ Comenzi Șterse":
+                # SECȚIUNEA PENTRU COMENZI ȘTERSE
+                st.subheader("🗑️ Comenzi Șterse")
+                
+                # Obține toate comenzile inclusiv cele șterse
+                orders_df = service.get_orders(include_deleted=True)
+                deleted_orders = orders_df[orders_df['is_deleted'] == 1]
+                
+                if not deleted_orders.empty:
+                    st.info(f"📭 Sunt {len(deleted_orders)} comenzi șterse în sistem.")
                     
-                    # Statistici
-                    total_orders = len(orders_df)
-                    total_revenue = orders_df['price_euro'].sum()
-                    pending_orders = len(orders_df[orders_df['status'] == 'pending'])
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Total Comenzi", total_orders)
-                    with col2:
-                        st.metric("Venit Total", f"{total_revenue:.0f} EUR")
-                    with col3:
-                        st.metric("În Așteptare", pending_orders)
-                    
-                    # Filtre
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        status_filter = st.selectbox("Filtrează după status:", 
-                                                   ["Toate", "pending", "processing", "completed"])
-                    with col2:
-                        if st.button("🔄 Actualizează Dashboard"):
-                            st.rerun()
-                    
-                    # Afișează comenzile
-                    filtered_df = orders_df if status_filter == "Toate" else orders_df[orders_df['status'] == status_filter]
-                    
-                    for _, order in filtered_df.iterrows():
+                    for _, order in deleted_orders.iterrows():
                         with st.container():
                             col1, col2, col3 = st.columns([3, 2, 1])
                             
                             with col1:
-                                st.subheader(f"#{order['id']} - {order['student_name']}")
+                                st.markdown(f'<div class="deleted"><h4>#{order["id"]} - {order["student_name"]}</h4></div>', 
+                                          unsafe_allow_html=True)
                                 st.write(f"**📧 {order['email']}** • **📱 {order.get('contact_phone', 'Nespecificat')}**")
                                 st.write(f"**🎯 {order['resolution']}** • **🖼️ {order['render_count']} randări** • **💰 {order['price_euro']} EUR**")
-                                st.write(f"**⏰ {order['estimated_days']} zile** • **📅 {order['deadline']}**")
-                                
-                                # Afișare corectă fișier/link
-                                project_file = order.get('project_file')
-                                project_link = order.get('project_link')
-                                
-                                if project_file and project_file != 'None':
-                                    st.write(f"**📦 Fișier:** {project_file}")
-                                elif project_link and project_link != 'None':
-                                    st.write(f"**🔗 Link:** {project_link}")
-                                else:
-                                    st.write("**📦 Proiect:** Niciun fișier/link furnizat")
+                                st.write(f"**🗑️ Ștearsă la:** {order['deleted_at']}")
+                                if order['deletion_reason']:
+                                    st.write(f"**📝 Motiv:** {order['deletion_reason']}")
                             
                             with col2:
-                                status_color = {
-                                    'pending': 'status-pending',
-                                    'processing': 'status-processing', 
-                                    'completed': 'status-completed'
-                                }.get(order['status'], '')
-                                
-                                st.markdown(f'<div class="{status_color}"><strong>Status:</strong> {order["status"].upper()}</div>', 
-                                          unsafe_allow_html=True)
-                                
-                                if order['is_urgent']:
-                                    st.markdown('<div class="urgent"><strong>🚀 URGENT</strong></div>', 
-                                              unsafe_allow_html=True)
-                                
-                                st.write(f"**💳 Plata:** {order.get('payment_status', 'pending')}")
-                            
-                            with col3:
-                                if order['download_link']:
-                                    st.markdown(f"[📥 Download]({order['download_link']})")
-                                created = datetime.strptime(order['created_at'][:10], '%Y-%m-%d')
-                                days_passed = (datetime.now() - created).days
-                                days_left = max(0, order['estimated_days'] - days_passed)
-                                st.markdown(f"**⏳ {days_left}z rămase**")
+                                col_restore, col_permanent = st.columns(2)
+                                with col_restore:
+                                    if st.button(f"🔄 Restabilește", key=f"restore_{order['id']}"):
+                                        if service.restore_order(order['id']):
+                                            st.success(f"✅ Comanda #{order['id']} a fost restabilită!")
+                                            time.sleep(1)
+                                            st.rerun()
+                                with col_permanent:
+                                    if st.button(f"🗑️ Șterge definitiv", key=f"perm_{order['id']}"):
+                                        if st.checkbox(f"❌ Confirm ștergerea definitivă a comenzii #{order['id']}", 
+                                                     key=f"confirm_perm_{order['id']}"):
+                                            if service.permanently_delete_order(order['id']):
+                                                st.success(f"✅ Comanda #{order['id']} a fost ștearsă definitiv!")
+                                                time.sleep(1)
+                                                st.rerun()
                             
                             st.divider()
+                    
+                    # Buton pentru ștergerea tuturor comenzilor șterse
+                    if st.button("🗑️ Șterge toate comenzile șterse definitiv", type="secondary"):
+                        if st.checkbox("❌ CONFIRM: Șterg definitiv TOATE comenzile marcate ca șterse"):
+                            success_count = 0
+                            for order_id in deleted_orders['id']:
+                                if service.permanently_delete_order(order_id):
+                                    success_count += 1
+                            st.success(f"✅ {success_count} comenzi șterse definitiv!")
+                            time.sleep(1)
+                            st.rerun()
                 
-                elif admin_menu == "🎯 Gestionare Comenzi":
-                    # GESTIONARE COMENZI
-                    st.subheader("🎯 Gestionare Comenzi")
-                    
-                    for _, order in orders_df.iterrows():
-                        with st.expander(f"#{order['id']} - {order['student_name']} - {order['price_euro']} EUR"):
-                            col1, col2 = st.columns(2)
-                            
-                            with col1:
-                                st.write(f"**📧 Email:** {order['email']}")
-                                st.write(f"**📱 Telefon:** {order.get('contact_phone', 'Nespecificat')}")
-                                st.write(f"**💶 Preț:** {order['price_euro']} EUR")
-                                
-                                # Afișare corectă fișier/link
-                                project_file = order.get('project_file')
-                                project_link = order.get('project_link')
-                                
-                                if project_file and project_file != 'None':
-                                    st.write(f"**📦 Fișier încărcat:** {project_file}")
-                                elif project_link and project_link != 'None':
-                                    st.write(f"**🔗 Link proiect:** {project_link}")
-                                else:
-                                    st.write("**📦 Proiect:** Niciun fișier/link furnizat")
-                            
-                            with col2:
-                                new_status = st.selectbox(
-                                    f"Status #{order['id']}",
-                                    ["pending", "processing", "completed"],
-                                    index=["pending", "processing", "completed"].index(order['status']),
-                                    key=f"status_{order['id']}"
-                                )
-                                
-                                download_link = st.text_input(
-                                    "🔗 Link download",
-                                    value=order['download_link'] or "",
-                                    key=f"download_{order['id']}"
-                                )
-                                
-                                if st.button(f"💾 Salvează #{order['id']}", key=f"btn_{order['id']}"):
-                                    if service.update_order_status(order['id'], new_status, download_link or None):
-                                        st.success(f"✅ Comanda #{order['id']} actualizată!")
-                                        time.sleep(1)
-                                        st.rerun()
-                
-                else:  # STATISTICI
-                    st.subheader("📈 Statistici Avansate")
-                    total_revenue = orders_df['price_euro'].sum()
-                    completed_orders = len(orders_df[orders_df['status'] == 'completed'])
-                    urgent_orders = len(orders_df[orders_df['is_urgent'] == True])
-                    processing_orders = len(orders_df[orders_df['status'] == 'processing'])
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Venit Total", f"{total_revenue:.0f} EUR")
-                    with col2:
-                        st.metric("Comenzi Finalizate", completed_orders)
-                    with col3:
-                        st.metric("Comenzi Urgente", urgent_orders)
-                    with col4:
-                        st.metric("În Procesare", processing_orders)
-                    
-                    # Export date
-                    st.subheader("📤 Export Date")
-                    csv = orders_df.to_csv(index=False)
-                    st.download_button(
-                        "📥 Exportă CSV cu toate comenzile",
-                        data=csv,
-                        file_name=f"comenzi_rendering_{datetime.now().strftime('%Y%m%d')}.csv",
-                        mime="text/csv"
-                    )
+                else:
+                    st.info("🎉 Nu există comenzi șterse în sistem.")
             
             else:
-                st.info("📭 Nu există comenzi în sistem.")
+                # Restul secțiunilor de administrare rămân la fel
+                orders_df = service.get_orders()
+                
+                if not orders_df.empty:
+                    if admin_menu == "📊 Dashboard Comenzi":
+                        # DASHBOARD în administrare
+                        st.subheader("📊 Dashboard Comenzi")
+                        
+                        # Statistici
+                        total_orders = len(orders_df)
+                        total_revenue = orders_df['price_euro'].sum()
+                        pending_orders = len(orders_df[orders_df['status'] == 'pending'])
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Total Comenzi", total_orders)
+                        with col2:
+                            st.metric("Venit Total", f"{total_revenue:.0f} EUR")
+                        with col3:
+                            st.metric("În Așteptare", pending_orders)
+                        
+                        # Filtre
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            status_filter = st.selectbox("Filtrează după status:", 
+                                                       ["Toate", "pending", "processing", "completed"])
+                        with col2:
+                            if st.button("🔄 Actualizează Dashboard"):
+                                st.rerun()
+                        
+                        # Afișează comenzile
+                        filtered_df = orders_df if status_filter == "Toate" else orders_df[orders_df['status'] == status_filter]
+                        
+                        for _, order in filtered_df.iterrows():
+                            with st.container():
+                                col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                                
+                                with col1:
+                                    st.subheader(f"#{order['id']} - {order['student_name']}")
+                                    st.write(f"**📧 {order['email']}** • **📱 {order.get('contact_phone', 'Nespecificat')}**")
+                                    st.write(f"**🎯 {order['resolution']}** • **🖼️ {order['render_count']} randări** • **💰 {order['price_euro']} EUR**")
+                                    st.write(f"**⏰ {order['estimated_days']} zile** • **📅 {order['deadline']}**")
+                                    
+                                    # Afișare corectă fișier/link
+                                    project_file = order.get('project_file')
+                                    project_link = order.get('project_link')
+                                    
+                                    if project_file and project_file != 'None':
+                                        st.write(f"**📦 Fișier:** {project_file}")
+                                    elif project_link and project_link != 'None':
+                                        st.write(f"**🔗 Link:** {project_link}")
+                                    else:
+                                        st.write("**📦 Proiect:** Niciun fișier/link furnizat")
+                                
+                                with col2:
+                                    status_color = {
+                                        'pending': 'status-pending',
+                                        'processing': 'status-processing', 
+                                        'completed': 'status-completed'
+                                    }.get(order['status'], '')
+                                    
+                                    st.markdown(f'<div class="{status_color}"><strong>Status:</strong> {order["status"].upper()}</div>', 
+                                              unsafe_allow_html=True)
+                                    
+                                    if order['is_urgent']:
+                                        st.markdown('<div class="urgent"><strong>🚀 URGENT</strong></div>', 
+                                                  unsafe_allow_html=True)
+                                    
+                                    st.write(f"**💳 Plata:** {order.get('payment_status', 'pending')}")
+                                
+                                with col3:
+                                    if order['download_link']:
+                                        st.markdown(f"[📥 Download]({order['download_link']})")
+                                    created = datetime.strptime(order['created_at'][:10], '%Y-%m-%d')
+                                    days_passed = (datetime.now() - created).days
+                                    days_left = max(0, order['estimated_days'] - days_passed)
+                                    st.markdown(f"**⏳ {days_left}z rămase**")
+                                
+                                with col4:
+                                    # Buton pentru ștergere
+                                    if st.button(f"🗑️", key=f"delete_{order['id']}"):
+                                        reason = st.text_input(f"Motiv ștergere #{order['id']}:", 
+                                                             placeholder="ex: anulat de client, eroare, etc.",
+                                                             key=f"reason_{order['id']}")
+                                        if st.button(f"✅ Confirm ștergere", key=f"confirm_del_{order['id']}"):
+                                            if service.delete_order(order['id'], reason):
+                                                st.success(f"✅ Comanda #{order['id']} a fost ștearsă!")
+                                                time.sleep(1)
+                                                st.rerun()
+                                
+                                st.divider()
+                    
+                    elif admin_menu == "🎯 Gestionare Comenzi":
+                        # GESTIONARE COMENZI
+                        st.subheader("🎯 Gestionare Comenzi")
+                        
+                        for _, order in orders_df.iterrows():
+                            with st.expander(f"#{order['id']} - {order['student_name']} - {order['price_euro']} EUR"):
+                                col1, col2 = st.columns(2)
+                                
+                                with col1:
+                                    st.write(f"**📧 Email:** {order['email']}")
+                                    st.write(f"**📱 Telefon:** {order.get('contact_phone', 'Nespecificat')}")
+                                    st.write(f"**💶 Preț:** {order['price_euro']} EUR")
+                                    
+                                    # Afișare corectă fișier/link
+                                    project_file = order.get('project_file')
+                                    project_link = order.get('project_link')
+                                    
+                                    if project_file and project_file != 'None':
+                                        st.write(f"**📦 Fișier încărcat:** {project_file}")
+                                    elif project_link and project_link != 'None':
+                                        st.write(f"**🔗 Link proiect:** {project_link}")
+                                    else:
+                                        st.write("**📦 Proiect:** Niciun fișier/link furnizat")
+                                
+                                with col2:
+                                    new_status = st.selectbox(
+                                        f"Status #{order['id']}",
+                                        ["pending", "processing", "completed"],
+                                        index=["pending", "processing", "completed"].index(order['status']),
+                                        key=f"status_{order['id']}"
+                                    )
+                                    
+                                    download_link = st.text_input(
+                                        "🔗 Link download",
+                                        value=order['download_link'] or "",
+                                        key=f"download_{order['id']}"
+                                    )
+                                    
+                                    col_btn1, col_btn2 = st.columns(2)
+                                    with col_btn1:
+                                        if st.button(f"💾 Salvează #{order['id']}", key=f"btn_{order['id']}"):
+                                            if service.update_order_status(order['id'], new_status, download_link or None):
+                                                st.success(f"✅ Comanda #{order['id']} actualizată!")
+                                                time.sleep(1)
+                                                st.rerun()
+                                    with col_btn2:
+                                        if st.button(f"🗑️ Șterge #{order['id']}", key=f"del_btn_{order['id']}"):
+                                            reason = st.text_input(f"Motiv ștergere:", 
+                                                                 placeholder="ex: anulat de client",
+                                                                 key=f"del_reason_{order['id']}")
+                                            if st.button(f"✅ Confirm ștergere", key=f"confirm_del_btn_{order['id']}"):
+                                                if service.delete_order(order['id'], reason):
+                                                    st.success(f"✅ Comanda #{order['id']} ștearsă!")
+                                                    time.sleep(1)
+                                                    st.rerun()
+                    
+                    else:  # STATISTICI
+                        st.subheader("📈 Statistici Avansate")
+                        total_revenue = orders_df['price_euro'].sum()
+                        completed_orders = len(orders_df[orders_df['status'] == 'completed'])
+                        urgent_orders = len(orders_df[orders_df['is_urgent'] == True])
+                        processing_orders = len(orders_df[orders_df['status'] == 'processing'])
+                        
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Venit Total", f"{total_revenue:.0f} EUR")
+                        with col2:
+                            st.metric("Comenzi Finalizate", completed_orders)
+                        with col3:
+                            st.metric("Comenzi Urgente", urgent_orders)
+                        with col4:
+                            st.metric("În Procesare", processing_orders)
+                        
+                        # Export date
+                        st.subheader("📤 Export Date")
+                        csv = orders_df.to_csv(index=False)
+                        st.download_button(
+                            "📥 Exportă CSV cu toate comenzile",
+                            data=csv,
+                            file_name=f"comenzi_rendering_{datetime.now().strftime('%Y%m%d')}.csv",
+                            mime="text/csv"
+                        )
+                
+                else:
+                    st.info("📭 Nu există comenzi în sistem.")
         
         elif admin_password and admin_password != correct_password:
             st.error("❌ Parolă incorectă!")
