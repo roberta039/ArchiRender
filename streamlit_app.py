@@ -384,45 +384,53 @@ def main():
                 
                 with col1:
                     st.subheader("👤 Date Personale")
-                    student_name = st.text_input("Nume complet*")
-                    email = st.text_input("Email*")
-                    contact_phone = st.text_input("Număr de telefon*")
-                    faculty = st.text_input("Facultate/Universitate")
+                    student_name = st.text_input("Nume complet*", key="student_name")
+                    email = st.text_input("Email*", key="email")
+                    contact_phone = st.text_input("Număr de telefon*", key="contact_phone")
+                    faculty = st.text_input("Facultate/Universitate", key="faculty")
                     
                     st.subheader("📤 Încarcă Proiectul")
                     upload_option = st.radio("Alege metoda de upload:", 
-                                           ["📎 Încarcă fișier", "🔗 Link extern"])
+                                           ["📎 Încarcă fișier", "🔗 Link extern"],
+                                           key="upload_option")
                     
                     if upload_option == "📎 Încarcă fișier":
                         project_file = st.file_uploader("Încarcă fișierul proiectului", 
                                                       type=['skp', 'rvt', 'max', 'blend', 'dwg', 'zip', 'rar'],
-                                                      help="Suportă: SketchUp, Revit, 3ds Max, Blender, etc.")
+                                                      help="Suportă: SketchUp, Revit, 3ds Max, Blender, etc.",
+                                                      key="file_uploader")
                         project_link = None
                     else:
                         project_link = st.text_input("Link descărcare proiect*", 
-                                                   placeholder="https://drive.google.com/... sau Wetransfer, Dropbox, etc.")
+                                                   placeholder="https://drive.google.com/... sau Wetransfer, Dropbox, etc.",
+                                                   key="project_link")
                         project_file = None
                 
                 with col2:
                     st.subheader("🎯 Specificații Rendering")
                     software = st.selectbox(
                         "Software utilizat*",
-                        ["SketchUp", "Revit", "3ds Max", "Blender", "Archicad", "Lumion", "Altul"]
+                        ["SketchUp", "Revit", "3ds Max", "Blender", "Archicad", "Lumion", "Altul"],
+                        key="software"
                     )
                     
                     resolution = st.selectbox(
                         "Rezoluție rendering*",
-                        ["2-4K", "4-6K", "8K+"]
+                        ["2-4K", "4-6K", "8K+"],
+                        key="resolution"
                     )
                     
                     render_count = st.slider("Număr de randări*", 1, 20, 1, 
-                                           help="1-3 randări = 3 zile, 4-7 = 6 zile, 8-10 = 9 zile, etc.")
+                                           help="1-3 randări = 3 zile, 4-7 = 6 zile, 8-10 = 9 zile, etc.",
+                                           key="render_count")
                     
                     is_urgent = st.checkbox("🚀 Comandă urgentă (+50% cost)", 
-                                          help="Timp de procesare redus la jumătate")
+                                          help="Timp de procesare redus la jumătate",
+                                          key="is_urgent")
                     
                     requirements = st.text_area("Cerințe specifice rendering", 
-                                              placeholder="Unghi cameră, iluminare, materiale, stil preferat, etc.")
+                                              placeholder="Unghi cameră, iluminare, materiale, stil preferat, etc.",
+                                              key="requirements")
                 
                 # Calcul preț și timp
                 if resolution and render_count:
@@ -533,16 +541,16 @@ def main():
                 st.write(f"**⚡ Urgent:** {'Da' if form_data['is_urgent'] else 'Nu'}")
             
             # Confirmare plată
-            payment_confirmed = st.checkbox("✅ Confirm că am efectuat plata")
+            payment_confirmed = st.checkbox("✅ Confirm că am efectuat plata", key="payment_confirmed")
             
             col1, col2 = st.columns([1, 2])
             with col1:
-                if st.button("🔄 Modifică Comanda"):
+                if st.button("🔄 Modifică Comanda", key="modify_button"):
                     st.session_state.order_submitted = False
                     st.rerun()
             
             with col2:
-                if st.button("📨 Finalizează Comanda și Primește Chitanța", type="primary"):
+                if st.button("📨 Finalizează Comanda și Primește Chitanța", type="primary", key="finalize_button"):
                     if not payment_confirmed:
                         st.error("⚠️ Te rog confirmă efectuarea plății!")
                     else:
@@ -650,7 +658,7 @@ def main():
         except:
             correct_password = os.getenv('ADMIN_PASSWORD', 'Admin123!')
         
-        admin_password = st.text_input("Parolă administrare:", type="password")
+        admin_password = st.text_input("Parolă administrare:", type="password", key="admin_password")
         
         if admin_password == correct_password:
             st.success("✅ Acces administrativ acordat")
@@ -658,7 +666,8 @@ def main():
             # Submeniu în administrare
             admin_menu = st.radio("Alege secțiunea:", 
                                 ["📊 Dashboard Comenzi", "🎯 Gestionare Comenzi", "📈 Statistici"],
-                                horizontal=True)
+                                horizontal=True,
+                                key="admin_menu")
             
             orders_df = service.get_orders()
             
@@ -684,9 +693,10 @@ def main():
                     col1, col2 = st.columns(2)
                     with col1:
                         status_filter = st.selectbox("Filtrează după status:", 
-                                                   ["Toate", "pending", "processing", "completed"])
+                                                   ["Toate", "pending", "processing", "completed"],
+                                                   key="status_filter")
                     with col2:
-                        if st.button("🔄 Actualizează Dashboard"):
+                        if st.button("🔄 Actualizează Dashboard", key="refresh_dashboard"):
                             st.rerun()
                     
                     # Afișează comenzile
@@ -807,7 +817,8 @@ def main():
                         "📥 Exportă CSV cu toate comenzile",
                         data=csv,
                         file_name=f"comenzi_rendering_{datetime.now().strftime('%Y%m%d')}.csv",
-                        mime="text/csv"
+                        mime="text/csv",
+                        key="export_csv"
                     )
             
             else:
