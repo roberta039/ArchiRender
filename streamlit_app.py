@@ -376,116 +376,130 @@ def main():
             st.session_state.order_submitted = False
         if 'form_data' not in st.session_state:
             st.session_state.form_data = {}
+        if 'upload_option' not in st.session_state:
+            st.session_state.upload_option = "📎 Încarcă fișier"
         
         if not st.session_state.order_submitted:
-            # FORMULAR INITIAL
-            with st.form("comanda_rendering"):
-                col1, col2 = st.columns(2)
+            # Folosim columns pentru a separa logica de afișare
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("👤 Date Personale")
+                student_name = st.text_input("Nume complet*")
+                email = st.text_input("Email*")
+                contact_phone = st.text_input("Număr de telefon*")
+                faculty = st.text_input("Facultate/Universitate")
                 
-                with col1:
-                    st.subheader("👤 Date Personale")
-                    student_name = st.text_input("Nume complet*", key="student_name")
-                    email = st.text_input("Email*", key="email")
-                    contact_phone = st.text_input("Număr de telefon*", key="contact_phone")
-                    faculty = st.text_input("Facultate/Universitate", key="faculty")
-                    
-                    st.subheader("📤 Încarcă Proiectul")
-                    upload_option = st.radio("Alege metoda de upload:", 
-                                           ["📎 Încarcă fișier", "🔗 Link extern"],
-                                           key="upload_option")
-                    
-                    if upload_option == "📎 Încarcă fișier":
-                        project_file = st.file_uploader("Încarcă fișierul proiectului", 
-                                                      type=['skp', 'rvt', 'max', 'blend', 'dwg', 'zip', 'rar'],
-                                                      help="Suportă: SketchUp, Revit, 3ds Max, Blender, etc.",
-                                                      key="file_uploader")
-                        project_link = None
-                    else:
-                        project_link = st.text_input("Link descărcare proiect*", 
-                                                   placeholder="https://drive.google.com/... sau Wetransfer, Dropbox, etc.",
-                                                   key="project_link")
-                        project_file = None
+                st.subheader("📤 Încarcă Proiectul")
                 
-                with col2:
-                    st.subheader("🎯 Specificații Rendering")
-                    software = st.selectbox(
-                        "Software utilizat*",
-                        ["SketchUp", "Revit", "3ds Max", "Blender", "Archicad", "Lumion", "Altul"],
-                        key="software"
+                # Radio button cu callback pentru a forța re-run
+                upload_option = st.radio(
+                    "Alege metoda de upload:", 
+                    ["📎 Încarcă fișier", "🔗 Link extern"],
+                    index=0 if st.session_state.upload_option == "📎 Încarcă fișier" else 1,
+                    key="upload_radio"
+                )
+                
+                # Actualizează session state când se schimbă opțiunea
+                if upload_option != st.session_state.upload_option:
+                    st.session_state.upload_option = upload_option
+                    st.rerun()
+                
+                # Afișează câmpul corespunzător în funcție de selecție
+                if st.session_state.upload_option == "📎 Încarcă fișier":
+                    project_file = st.file_uploader(
+                        "Încarcă fișierul proiectului", 
+                        type=['skp', 'rvt', 'max', 'blend', 'dwg', 'zip', 'rar'],
+                        help="Suportă: SketchUp, Revit, 3ds Max, Blender, etc."
                     )
-                    
-                    resolution = st.selectbox(
-                        "Rezoluție rendering*",
-                        ["2-4K", "4-6K", "8K+"],
-                        key="resolution"
+                    project_link = None
+                    st.info("💡 **Formate acceptate:** .skp, .rvt, .max, .blend, .dwg, .zip, .rar")
+                else:
+                    project_link = st.text_input(
+                        "Link descărcare proiect*", 
+                        placeholder="https://drive.google.com/... sau Wetransfer, Dropbox, etc.",
+                        help="Adaugă un link de descărcare de pe Google Drive, WeTransfer, Dropbox etc."
                     )
-                    
-                    render_count = st.slider("Număr de randări*", 1, 20, 1, 
-                                           help="1-3 randări = 3 zile, 4-7 = 6 zile, 8-10 = 9 zile, etc.",
-                                           key="render_count")
-                    
-                    is_urgent = st.checkbox("🚀 Comandă urgentă (+50% cost)", 
-                                          help="Timp de procesare redus la jumătate",
-                                          key="is_urgent")
-                    
-                    requirements = st.text_area("Cerințe specifice rendering", 
-                                              placeholder="Unghi cameră, iluminare, materiale, stil preferat, etc.",
-                                              key="requirements")
+                    project_file = None
+                    st.info("💡 **Servicii acceptate:** Google Drive, WeTransfer, Dropbox, OneDrive, etc.")
+            
+            with col2:
+                st.subheader("🎯 Specificații Rendering")
+                software = st.selectbox(
+                    "Software utilizat*",
+                    ["SketchUp", "Revit", "3ds Max", "Blender", "Archicad", "Lumion", "Altul"]
+                )
                 
-                # Calcul preț și timp
-                if resolution and render_count:
-                    price_euro, estimated_days = service.calculate_price_and_days(
-                        resolution, render_count, is_urgent
-                    )
-                    
-                    delivery_date = datetime.now() + timedelta(days=estimated_days)
-                    
-                    st.markdown("---")
-                    st.markdown(
-                        f"""
-                        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 4px solid #28a745; margin: 15px 0;">
-                            <h3 style="color: #28a745;">💰 Total: {price_euro} EUR</h3>
-                            <p><strong>⏰ Timp de livrare:</strong> {estimated_days} zile lucrătoare</p>
-                            <p><strong>📅 Data estimată:</strong> {delivery_date.strftime('%d %B %Y')}</p>
-                            <p><strong>🎯 Rezoluție:</strong> {resolution}</p>
-                            <p><strong>🖼️ Randări:</strong> {render_count}</p>
-                            <p><strong>⚡ Urgent:</strong> {'Da (+50%)' if is_urgent else 'Nu'}</p>
-                        </div>
-                        """, 
-                        unsafe_allow_html=True
-                    )
+                resolution = st.selectbox(
+                    "Rezoluție rendering*",
+                    ["2-4K", "4-6K", "8K+"]
+                )
                 
-                st.markdown("** * Câmpuri obligatorii*")
+                render_count = st.slider("Număr de randări*", 1, 20, 1, 
+                                       help="1-3 randări = 3 zile, 4-7 = 6 zile, 8-10 = 9 zile, etc.")
                 
-                submitted = st.form_submit_button("🚀 Continuă la Plată")
+                is_urgent = st.checkbox("🚀 Comandă urgentă (+50% cost)", 
+                                      help="Timp de procesare redus la jumătate")
                 
-                if submitted:
-                    if not all([student_name, email, contact_phone, software, resolution]):
-                        st.error("⚠️ Te rog completează toate câmpurile obligatorii!")
-                    elif upload_option == "📎 Încarcă fișier" and project_file is None:
-                        st.error("⚠️ Te rog încarcă fișierul proiectului!")
-                    elif upload_option == "🔗 Link extern" and not project_link:
-                        st.error("⚠️ Te rog adaugă link-ul de descărcare!")
-                    else:
-                        # Salvează datele în session state
-                        st.session_state.form_data = {
-                            'student_name': student_name,
-                            'email': email,
-                            'contact_phone': contact_phone,
-                            'faculty': faculty,
-                            'project_file': project_file.name if project_file else None,
-                            'project_link': project_link,
-                            'software': software,
-                            'resolution': resolution,
-                            'render_count': render_count,
-                            'is_urgent': is_urgent,
-                            'requirements': requirements,
-                            'price_euro': price_euro,
-                            'estimated_days': estimated_days,
-                            'delivery_date': delivery_date
-                        }
-                        st.session_state.order_submitted = True
-                        st.rerun()
+                requirements = st.text_area("Cerințe specifice rendering", 
+                                          placeholder="Unghi cameră, iluminare, materiale, stil preferat, etc.",
+                                          height=100)
+            
+            # Calcul preț și timp
+            if resolution and render_count:
+                price_euro, estimated_days = service.calculate_price_and_days(
+                    resolution, render_count, is_urgent
+                )
+                
+                delivery_date = datetime.now() + timedelta(days=estimated_days)
+                
+                st.markdown("---")
+                st.markdown(
+                    f"""
+                    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 4px solid #28a745; margin: 15px 0;">
+                        <h3 style="color: #28a745;">💰 Total: {price_euro} EUR</h3>
+                        <p><strong>⏰ Timp de livrare:</strong> {estimated_days} zile lucrătoare</p>
+                        <p><strong>📅 Data estimată:</strong> {delivery_date.strftime('%d %B %Y')}</p>
+                        <p><strong>🎯 Rezoluție:</strong> {resolution}</p>
+                        <p><strong>🖼️ Randări:</strong> {render_count}</p>
+                        <p><strong>⚡ Urgent:</strong> {'Da (+50%)' if is_urgent else 'Nu'}</p>
+                    </div>
+                    """, 
+                    unsafe_allow_html=True
+                )
+            
+            st.markdown("** * Câmpuri obligatorii*")
+            
+            # Buton de submit în afara coloanelor
+            submitted = st.button("🚀 Continuă la Plată", type="primary", use_container_width=True)
+            
+            if submitted:
+                if not all([student_name, email, contact_phone, software, resolution]):
+                    st.error("⚠️ Te rog completează toate câmpurile obligatorii!")
+                elif st.session_state.upload_option == "📎 Încarcă fișier" and project_file is None:
+                    st.error("⚠️ Te rog încarcă fișierul proiectului!")
+                elif st.session_state.upload_option == "🔗 Link extern" and not project_link:
+                    st.error("⚠️ Te rog adaugă link-ul de descărcare!")
+                else:
+                    # Salvează datele în session state
+                    st.session_state.form_data = {
+                        'student_name': student_name,
+                        'email': email,
+                        'contact_phone': contact_phone,
+                        'faculty': faculty,
+                        'project_file': project_file.name if project_file else None,
+                        'project_link': project_link,
+                        'software': software,
+                        'resolution': resolution,
+                        'render_count': render_count,
+                        'is_urgent': is_urgent,
+                        'requirements': requirements,
+                        'price_euro': price_euro,
+                        'estimated_days': estimated_days,
+                        'delivery_date': delivery_date
+                    }
+                    st.session_state.order_submitted = True
+                    st.rerun()
         
         else:
             # PAGINA DE PLATĂ (după submit formular)
@@ -541,16 +555,16 @@ def main():
                 st.write(f"**⚡ Urgent:** {'Da' if form_data['is_urgent'] else 'Nu'}")
             
             # Confirmare plată
-            payment_confirmed = st.checkbox("✅ Confirm că am efectuat plata", key="payment_confirmed")
+            payment_confirmed = st.checkbox("✅ Confirm că am efectuat plata")
             
             col1, col2 = st.columns([1, 2])
             with col1:
-                if st.button("🔄 Modifică Comanda", key="modify_button"):
+                if st.button("🔄 Modifică Comanda"):
                     st.session_state.order_submitted = False
                     st.rerun()
             
             with col2:
-                if st.button("📨 Finalizează Comanda și Primește Chitanța", type="primary", key="finalize_button"):
+                if st.button("📨 Finalizează Comanda și Primește Chitanța", type="primary"):
                     if not payment_confirmed:
                         st.error("⚠️ Te rog confirmă efectuarea plății!")
                     else:
@@ -602,6 +616,10 @@ def main():
                                 # Reset form
                                 st.session_state.order_submitted = False
                                 st.session_state.form_data = {}
+                                st.session_state.upload_option = "📎 Încarcă fișier"
+
+    # Restul codului rămâne la fel...
+    # [Secțiunile pentru Prețuri, Administrare, Contact]
 
     # Secțiunea prețuri
     elif menu == "💰 Prețuri & Termene":
@@ -658,7 +676,7 @@ def main():
         except:
             correct_password = os.getenv('ADMIN_PASSWORD', 'Admin123!')
         
-        admin_password = st.text_input("Parolă administrare:", type="password", key="admin_password")
+        admin_password = st.text_input("Parolă administrare:", type="password")
         
         if admin_password == correct_password:
             st.success("✅ Acces administrativ acordat")
@@ -666,8 +684,7 @@ def main():
             # Submeniu în administrare
             admin_menu = st.radio("Alege secțiunea:", 
                                 ["📊 Dashboard Comenzi", "🎯 Gestionare Comenzi", "📈 Statistici"],
-                                horizontal=True,
-                                key="admin_menu")
+                                horizontal=True)
             
             orders_df = service.get_orders()
             
@@ -693,10 +710,9 @@ def main():
                     col1, col2 = st.columns(2)
                     with col1:
                         status_filter = st.selectbox("Filtrează după status:", 
-                                                   ["Toate", "pending", "processing", "completed"],
-                                                   key="status_filter")
+                                                   ["Toate", "pending", "processing", "completed"])
                     with col2:
-                        if st.button("🔄 Actualizează Dashboard", key="refresh_dashboard"):
+                        if st.button("🔄 Actualizează Dashboard"):
                             st.rerun()
                     
                     # Afișează comenzile
@@ -817,8 +833,7 @@ def main():
                         "📥 Exportă CSV cu toate comenzile",
                         data=csv,
                         file_name=f"comenzi_rendering_{datetime.now().strftime('%Y%m%d')}.csv",
-                        mime="text/csv",
-                        key="export_csv"
+                        mime="text/csv"
                     )
             
             else:
