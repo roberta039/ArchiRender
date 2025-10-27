@@ -40,6 +40,7 @@ st.markdown("""
     .price-estimate { background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745; }
     .payment-box { background-color: #e8f5e8; padding: 20px; border-radius: 10px; border: 2px solid #28a745; }
     .countdown { background-color: #fff3cd; padding: 15px; border-radius: 8px; text-align: center; font-weight: bold; }
+    .revolut-link { background-color: #0075eb; color: white; padding: 15px; border-radius: 10px; text-align: center; margin: 10px 0; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -198,7 +199,7 @@ class RenderingService:
             • IBAN: RO49BTRL01301202XXXXXXX
             • Banca: Transilvania
             • Sumă: {order_data['price_euro']} EUR
-            • PayPal: bostiogstefania@gmail.com
+            • Revolut: https://revolut.me/stefanxuhy
             
             ⏰ DETALII LIVRARE:
             • Timp estimat: {order_data['estimated_days']} zile lucrătoare
@@ -477,15 +478,23 @@ def main():
                 <h2>💳 Finalizează Comanda</h2>
                 <h3>Total de plată: {form_data['price_euro']} EUR</h3>
                 
-                <h4>📋 Detalii plată:</h4>
-                <p><strong>Transfer bancar:</strong></p>
+                <h4>📋 Alege metoda de plată:</h4>
+                
+                <div class="revolut-link">
+                    <h4>🚀 Plată Rapidă cu Revolut</h4>
+                    <p><strong>Click pe link pentru a plăti:</strong></p>
+                    <a href="https://revolut.me/stefanxuhy" target="_blank" style="color: white; text-decoration: none; font-size: 1.2em;">
+                        <strong>https://revolut.me/stefanxuhy</strong>
+                    </a>
+                    <p><em>Sumă: {form_data['price_euro']} EUR</em></p>
+                </div>
+                
+                <p><strong>SAU Transfer Bancar:</strong></p>
                 <p>• Beneficiar: STEFANIA BOSTIOG</p>
                 <p>• IBAN: RO49BTRL01301202XXXXXXX</p>
                 <p>• Banca: Transilvania</p>
                 <p>• Sumă: {form_data['price_euro']} EUR</p>
                 <p>• Descriere: Rendering #{form_data['student_name'][:10]}</p>
-
-                <p><strong>Sau PayPal:</strong> bostiogstefania@gmail.com</p>
             </div>
             """, unsafe_allow_html=True)
             
@@ -603,10 +612,9 @@ def main():
             
             st.subheader("💳 Metode de Plată")
             st.markdown("""
-            • **Transfer Bancar** (RON/EUR)
-            • **PayPal** 
-            • **Revolut**
-            • **Card Bancar**
+            • **Revolut** - [revolut.me/stefanxuhy](https://revolut.me/stefanxuhy)
+            • **Transfer Bancar** 
+            • **PayPal** - bostiogstefania@gmail.com
             """)
     
     # Secțiunea de administrare (include și Dashboard acum)
@@ -798,10 +806,12 @@ def main():
             **📱 Telefon:** +40 724 911 299
             **💬 WhatsApp:** +40 724 911 299
             
-            **🏦 Detalii Bancare:**
-            • Beneficiar: STEFANIA BOSTIOG
-            • IBAN: RO49BTRL01301202XXXXXXX
-            • Banca: Transilvania
+            **💳 Metode de Plată:**
+            • **Revolut:** [revolut.me/stefanxuhy](https://revolut.me/stefanxuhy)
+            • **Transfer Bancar:** 
+              - Beneficiar: STEFANIA BOSTIOG
+              - IBAN: RO49BTRL01301202XXXXXXX
+              - Banca: Transilvania
 
             **🕒 Program:**
             Luni - Vineri: 9:00 - 18:00
