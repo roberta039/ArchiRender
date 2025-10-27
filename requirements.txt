@@ -2,7 +2,7 @@
 streamlit==1.26.0
 
 # Stripe (ultima versiune compatibilă cu Python 3.13)
-stripe>=13.1.0
+stripe==12.6.0
 
 # Alte dependențe necesare
 rich==14.2.0
