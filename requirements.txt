@@ -1,21 +1,6 @@
-# Core
 streamlit==1.26.0
 stripe==13.0.1
-
-# Utilities
 rich==14.2.0
 markdown-it-py==4.0.0
 mdurl==0.1.2
 pygments==2.19.2
-
-# Streamlit dependencies
-altair==5.5.0
-blinker==1.9.0
-cachetools==5.5.2
-click==8.3.0
-importlib-metadata==6.11.0
-numpy==1.26.4  # recomandat cu --prefer-binary pentru pip
-
-# Optional / extras (poți adăuga după necesitate)
-pandas==2.1.1
-python-dateutil==2.9.2
