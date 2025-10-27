@@ -4,20 +4,19 @@ streamlit>=1.28.0
 # Data Processing
 pandas>=1.5.0
 numpy>=1.21.0
-openpyxl>=3.0.0      # Pentru export Excel
-python-docx>=0.8.0   # Pentru documente Word
+openpyxl>=3.0.0
 
-# Email & Notifications
-smtplib>=0.0.1       # Built-in Python
-email>=3.0.0         # Built-in Python
+# Document Processing
+python-docx>=0.8.0
+
+# Email (doar pentru extended features)
+pyzmail36>=1.0.4
 
 # File Operations
-requests>=2.25.0     # Pentru descărcare link-uri
-python-magic>=0.4.0  # Pentru detectare tip fișiere
+requests>=2.25.0
 
-# Database (opțional)
+# Database
 sqlalchemy>=1.4.0
-psycopg2-binary>=2.9.0
 
 # Environment Variables
 python-dotenv>=0.19.0
