@@ -1,44 +1,57 @@
-# streamlit_app.py
-
 import streamlit as st
-import altair as alt
-import pandas as pd
 import stripe
 
-# --- Stripe setup ---
-stripe.api_key = "sk_test_your_stripe_secret_key_here"  # înlocuiește cu cheia ta
+# Setează cheia Stripe (folosește cheia ta secretă)
+stripe.api_key = "sk_test_your_key_here"
 
-st.set_page_config(page_title="Demo App", page_icon=":sparkles:")
-
-st.title("Bine ai venit la Streamlit App!")
-st.write("Aceasta este o aplicație demo cu Streamlit, Altair și Stripe.")
-
-# --- Exemplu Altair chart ---
-st.header("Exemplu grafic Altair")
-data = pd.DataFrame({
-    'Categorie': ['A', 'B', 'C', 'D'],
-    'Valoare': [10, 20, 30, 40]
-})
-
-chart = alt.Chart(data).mark_bar().encode(
-    x='Categorie',
-    y='Valoare',
-    color='Categorie'
+# ----------------------------
+# HEADER
+# ----------------------------
+st.set_page_config(
+    page_title="ArchiRender",
+    page_icon="🏛️",
+    layout="centered",
 )
-st.altair_chart(chart, use_container_width=True)
 
-# --- Exemplu Stripe Payment ---
-st.header("Plată Stripe demo")
-amount = st.number_input("Introdu suma în lei:", min_value=1, value=10)
-if st.button("Plătește cu Stripe"):
+st.title("🏛️ ArchiRender")
+st.markdown("""
+Bine ai venit la **ArchiRender**!  
+Aici poți vizualiza și gestiona proiectele tale arhitecturale și testa plăți demo.
+""")
+
+# ----------------------------
+# SECTIUNE PROIECTE
+# ----------------------------
+st.header("Proiecte Demo")
+projects = ["Casa modernă", "Birou corporativ", "Apartament minimal"]
+selected_project = st.selectbox("Alege un proiect", projects)
+st.write(f"Ai selectat proiectul: **{selected_project}**")
+
+# ----------------------------
+# SECTIUNE PLATA DEMO
+# ----------------------------
+st.header("Plată demo")
+amount = st.number_input("Sumă (în cenți)", min_value=100, value=500, step=100)
+currency = st.selectbox("Monedă", ["usd", "eur"])
+
+if st.button("Plătește"):
     try:
         payment_intent = stripe.PaymentIntent.create(
-            amount=int(amount * 100),  # Stripe folosește cea mai mică unitate (bani în bani)
-            currency='ron',
-            payment_method_types=['card'],
+            amount=int(amount),
+            currency=currency
         )
-        st.success(f"PaymentIntent creat! ID: {payment_intent['id']}")
+        st.success(f"Payment Intent creat cu ID: {payment_intent['id']}")
     except Exception as e:
         st.error(f"A apărut o eroare: {e}")
 
-st.write("🎉 Totul funcționează corect!")
+# ----------------------------
+# SECTIUNE INFO
+# ----------------------------
+st.markdown("---")
+st.info("Aceasta este o aplicație demo ArchiRender folosind Streamlit și Stripe. "
+        "Nu folosi cheia secretă reală pentru demo-uri publice!")
+
+# ----------------------------
+# FOOTER
+# ----------------------------
+st.caption("© 2025 ArchiRender. Toate drepturile rezervate.")
