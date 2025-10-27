@@ -6,14 +6,13 @@ import smtplib
 import os
 import json
 from datetime import datetime, timedelta
-from email.mime.text import MimeText
-from email.mime.multipart import MimeMultipart
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import sqlite3
 from sqlite3 import Error
 import time
 import io
 from pathlib import Path
-import python_dotenv
 from dotenv import load_dotenv
 
 # Încarcă variabilele de mediu
@@ -73,7 +72,7 @@ class RenderingService:
             conn.commit()
             conn.close()
         except Error as e:
-            st.error(f"Eroare la initializarea bazei de date: {e}")
+            st.error(f"❌ Eroare la initializarea bazei de date: {e}")
     
     def add_order(self, order_data):
         """Adaugă o comandă nouă în baza de date"""
@@ -100,46 +99,50 @@ class RenderingService:
             conn.commit()
             conn.close()
             
-            # Trimite email de confirmare
-            self.send_confirmation_email(order_data, order_id)
+            # Încearcă să trimiți email de confirmare (opțional)
+            try:
+                self.send_confirmation_email(order_data, order_id)
+            except Exception as e:
+                st.info("ℹ️ Comanda a fost salvată, dar notificarea email nu a putut fi trimisă.")
             
             return order_id
         except Error as e:
-            st.error(f"Eroare la adăugarea comenzii: {e}")
+            st.error(f"❌ Eroare la adăugarea comenzii: {e}")
             return None
     
     def send_confirmation_email(self, order_data, order_id):
         """Trimite email de confirmare (configurabil)"""
         try:
-            # Pentru a activa, setează variabilele de mediu în .env
+            # Verifică dacă email-ul este activat
             email_enabled = os.getenv('EMAIL_ENABLED', 'False').lower() == 'true'
             
             if not email_enabled:
                 return
                 
-            smtp_server = os.getenv('SMTP_SERVER')
+            smtp_server = os.getenv('SMTP_SERVER', '')
             smtp_port = int(os.getenv('SMTP_PORT', 587))
-            email_from = os.getenv('EMAIL_FROM')
-            email_password = os.getenv('EMAIL_PASSWORD')
+            email_from = os.getenv('EMAIL_FROM', '')
+            email_password = os.getenv('EMAIL_PASSWORD', '')
             
             if not all([smtp_server, email_from, email_password]):
                 return
             
-            msg = MimeMultipart()
+            # Creează mesajul
+            msg = MIMEMultipart()
             msg['From'] = email_from
             msg['To'] = order_data['email']
             msg['Subject'] = f"Comanda Rendering #{order_id} - Confirmare"
             
             body = f"""
-            Buna {order_data['student_name']},
+            Bună {order_data['student_name']},
             
             Comanda ta pentru rendering a fost înregistrată cu succes!
             
-            Detalii comanda:
+            📋 Detalii comanda:
             - ID Comanda: #{order_id}
             - Software: {order_data['software']}
             - Deadline: {order_data['deadline']}
-            - Cerințe: {order_data['requirements']}
+            - Cerințe: {order_data['requirements'] or 'Niciune specificate'}
             - Status: În așteptare
             
             Vei fi contactat în curând cu o estimare de preț și timp.
@@ -148,8 +151,9 @@ class RenderingService:
             Echipa Rendering Service ARH
             """
             
-            msg.attach(MimeText(body, 'plain'))
+            msg.attach(MIMEText(body, 'plain'))
             
+            # Conectează și trimite email
             server = smtplib.SMTP(smtp_server, smtp_port)
             server.starttls()
             server.login(email_from, email_password)
@@ -157,7 +161,7 @@ class RenderingService:
             server.quit()
             
         except Exception as e:
-            st.warning(f"Emailul nu a putut fi trimis: {e}")
+            st.warning(f"⚠️ Emailul nu a putut fi trimis: {e}")
     
     def get_orders(self, status=None):
         """Returnează toate comenzile"""
@@ -178,7 +182,7 @@ class RenderingService:
             conn.close()
             return df
         except Error as e:
-            st.error(f"Eroare la citirea comenzilor: {e}")
+            st.error(f"❌ Eroare la citirea comenzilor: {e}")
             return pd.DataFrame()
     
     def update_order_status(self, order_id, status, download_link=None):
@@ -204,18 +208,24 @@ class RenderingService:
             conn.close()
             return True
         except Error as e:
-            st.error(f"Eroare la actualizarea comenzii: {e}")
+            st.error(f"❌ Eroare la actualizarea comenzii: {e}")
             return False
 
 def main():
     st.markdown('<h1 class="main-header">🏗️ Rendering Service ARH</h1>', unsafe_allow_html=True)
     st.markdown("### Serviciu profesional de rendering pentru studenții la arhitectură")
     
+    # Inițializează serviciul
     service = RenderingService()
     
     # Sidebar pentru navigare
     with st.sidebar:
-        st.image("https://cdn-icons-png.flaticon.com/512/3094/3094707.png", width=100)
+        st.markdown("""
+        <div style="text-align: center;">
+            <h1>🏗️</h1>
+            <h3>Rendering Service</h3>
+        </div>
+        """, unsafe_allow_html=True)
         st.title("Navigare")
         menu = st.radio("Alege secțiunea:", [
             "📝 Comandă Rendering", 
@@ -248,7 +258,7 @@ def main():
                 
                 is_urgent = st.checkbox("🔴 Comandă urgentă (+50% cost)")
                 file_size = st.number_input("Dimensiunea estimată a proiectului (MB)", 
-                                          min_value=0, value=100)
+                                          min_value=0, value=100, step=10)
                 
                 requirements = st.text_area("Cerințe specifice rendering", 
                                           placeholder="Rezoluție, calitate, elemente speciale, etc.")
@@ -261,29 +271,30 @@ def main():
                 if not all([student_name, email, project_link, software]):
                     st.error("⚠️ Te rog completează toate câmpurile obligatorii!")
                 else:
-                    order_data = {
-                        'student_name': student_name,
-                        'email': email,
-                        'project_link': project_link,
-                        'software': software,
-                        'deadline': deadline.strftime("%Y-%m-%d"),
-                        'requirements': requirements,
-                        'is_urgent': is_urgent,
-                        'file_size_mb': file_size
-                    }
-                    
-                    order_id = service.add_order(order_data)
-                    if order_id:
-                        st.success(f"🎉 Comanda a fost înregistrată cu succes! ID: #{order_id}")
-                        st.balloons()
+                    with st.spinner("Se salvează comanda..."):
+                        order_data = {
+                            'student_name': student_name,
+                            'email': email,
+                            'project_link': project_link,
+                            'software': software,
+                            'deadline': deadline.strftime("%Y-%m-%d"),
+                            'requirements': requirements,
+                            'is_urgent': is_urgent,
+                            'file_size_mb': file_size
+                        }
                         
-                        st.info("""
-                        **Următorii pași:**
-                        1. Vei primi un email de confirmare
-                        2. Te voi contacta în maxim 24h cu estimarea de preț și timp
-                        3. După confirmare, voi procesa rendering-ul
-                        4. Vei primi link-ul de download când este gata
-                        """)
+                        order_id = service.add_order(order_data)
+                        if order_id:
+                            st.success(f"🎉 Comanda a fost înregistrată cu succes! ID: #{order_id}")
+                            st.balloons()
+                            
+                            st.info("""
+                            **📋 Următorii pași:**
+                            1. Vei primi un email de confirmare (dacă este configurat)
+                            2. Te voi contacta în maxim 24h cu estimarea de preț și timp
+                            3. După confirmare, voi procesa rendering-ul
+                            4. Vei primi link-ul de download când este gata
+                            """)
     
     # Dashboard comenzi
     elif menu == "📊 Dashboard Comenzi":
@@ -300,12 +311,16 @@ def main():
                                        ["Toate", "pending", "processing", "completed"])
         
         with col3:
-            st.download_button(
-                "📥 Exportă Excel",
-                data=pd.DataFrame().to_csv(index=False).encode('utf-8'),
-                file_name=f"comenzi_rendering_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv"
-            )
+            # Export funcționalitate
+            orders_df = service.get_orders()
+            if not orders_df.empty:
+                csv = orders_df.to_csv(index=False)
+                st.download_button(
+                    "📥 Exportă CSV",
+                    data=csv,
+                    file_name=f"comenzi_rendering_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv"
+                )
         
         # Afișează comenzile
         orders_df = service.get_orders(None if status_filter == "Toate" else status_filter)
@@ -351,16 +366,18 @@ def main():
     elif menu == "⚙️ Administrare":
         st.header("⚙️ Administrare Comenzi")
         
-        st.warning("Această secțiune este pentru administrator.")
+        st.info("Această secțiune este pentru administrator.")
         
-        password = st.text_input("Parolă administrare:", type="password")
+        # Parolă simplă pentru demo
+        admin_password = st.text_input("Parolă administrare:", type="password", value="admin123")
         
-        if password == os.getenv('ADMIN_PASSWORD', 'admin123'):
+        if admin_password == "admin123":  # Poți schimba parola
             st.success("✅ Acces administrativ acordat")
             
             orders_df = service.get_orders()
             
             if not orders_df.empty:
+                st.subheader("Gestionare Comenzi")
                 for _, order in orders_df.iterrows():
                     with st.expander(f"Comanda #{order['id']} - {order['student_name']} ({order['status']})"):
                         col1, col2 = st.columns(2)
@@ -373,41 +390,44 @@ def main():
                         
                         with col2:
                             new_status = st.selectbox(
-                                f"Schimbă status pentru #{order['id']}",
+                                f"Schimbă status",
                                 ["pending", "processing", "completed"],
                                 index=["pending", "processing", "completed"].index(order['status']),
                                 key=f"status_{order['id']}"
                             )
                             
                             download_link = st.text_input(
-                                "Link download (dacă e gata)",
+                                "Link download",
                                 value=order['download_link'] or "",
+                                placeholder="https://drive.google.com/...",
                                 key=f"download_{order['id']}"
                             )
                             
                             if st.button(f"Actualizează #{order['id']}", key=f"btn_{order['id']}"):
                                 if service.update_order_status(order['id'], new_status, download_link or None):
-                                    st.success(f"Comanda #{order['id']} actualizată!")
+                                    st.success(f"✅ Comanda #{order['id']} actualizată!")
                                     time.sleep(1)
                                     st.rerun()
             
             # Statistici
             st.subheader("📈 Statistici")
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
+            
+            total_orders = len(orders_df)
+            pending_orders = len(orders_df[orders_df['status'] == 'pending'])
+            processing_orders = len(orders_df[orders_df['status'] == 'processing'])
+            completed_orders = len(orders_df[orders_df['status'] == 'completed'])
             
             with col1:
-                total_orders = len(orders_df)
                 st.metric("Total Comenzi", total_orders)
-            
             with col2:
-                pending_orders = len(orders_df[orders_df['status'] == 'pending'])
                 st.metric("În Așteptare", pending_orders)
-            
             with col3:
-                completed_orders = len(orders_df[orders_df['status'] == 'completed'])
+                st.metric("În Procesare", processing_orders)
+            with col4:
                 st.metric("Finalizate", completed_orders)
         
-        elif password and password != os.getenv('ADMIN_PASSWORD', 'admin123'):
+        elif admin_password and admin_password != "admin123":
             st.error("❌ Parolă incorectă!")
     
     # Secțiunea Despre
