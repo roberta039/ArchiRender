@@ -41,6 +41,7 @@ st.markdown("""
     .payment-box { background-color: #e8f5e8; padding: 20px; border-radius: 10px; border: 2px solid #28a745; }
     .countdown { background-color: #fff3cd; padding: 15px; border-radius: 8px; text-align: center; font-weight: bold; }
     .revolut-link { background-color: #0075eb; color: white; padding: 15px; border-radius: 10px; text-align: center; margin: 10px 0; }
+    .bank-details { background-color: #f0f8ff; padding: 15px; border-radius: 8px; border-left: 4px solid #1f77b4; margin: 10px 0; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -170,7 +171,22 @@ class RenderingService:
             email_password = os.getenv('EMAIL_PASSWORD', '')
             
             if not all([smtp_server, email_from, email_password]):
-                st.warning("⚠️ Configurația email nu este completă. Verifică fișierul .env")
+                st.warning("""
+                ⚠️ **Configurația email nu este completă.** 
+                
+                Pentru a activa notificările email, adaugă următoarele variabile în fișierul `.env`:
+                ```
+                SMTP_SERVER=smtp.gmail.com
+                SMTP_PORT=587
+                EMAIL_FROM=emailul.tau@gmail.com
+                EMAIL_PASSWORD=parola_ta_de_aplicatie
+                ```
+                
+                **Instrucțiuni:**
+                1. Creează un fișier `.env` în același folder cu aplicația
+                2. Adaugă variabilele de mai sus cu datele tale
+                3. Pentru Gmail, folosește o "App Password" în loc de parola normală
+                """)
                 return
             
             # Email către client
@@ -195,11 +211,12 @@ class RenderingService:
             • Software: {order_data['software']}
             
             💳 DETALII PLATĂ:
-            • Beneficiar: STEFANIA BOSTIOG
-            • IBAN: RO49BTRL01301202XXXXXXX
-            • Banca: Transilvania
-            • Sumă: {order_data['price_euro']} EUR
             • Revolut: https://revolut.me/stefanxuhy
+            • Transfer Bancar:
+              - Beneficiar: STEFANIA BOSTIOG
+              - IBAN: RO60 BREL 0002 0036 6187 0100
+              - Bancă: Libra Bank
+              - Sumă: {order_data['price_euro']} EUR
             
             ⏰ DETALII LIVRARE:
             • Timp estimat: {order_data['estimated_days']} zile lucrătoare
@@ -489,12 +506,14 @@ def main():
                     <p><em>Sumă: {form_data['price_euro']} EUR</em></p>
                 </div>
                 
-                <p><strong>SAU Transfer Bancar:</strong></p>
-                <p>• Beneficiar: STEFANIA BOSTIOG</p>
-                <p>• IBAN: RO49BTRL01301202XXXXXXX</p>
-                <p>• Banca: Transilvania</p>
-                <p>• Sumă: {form_data['price_euro']} EUR</p>
-                <p>• Descriere: Rendering #{form_data['student_name'][:10]}</p>
+                <div class="bank-details">
+                    <h4>🏦 Transfer Bancar</h4>
+                    <p><strong>Beneficiar:</strong> STEFANIA BOSTIOG</p>
+                    <p><strong>IBAN:</strong> RO60 BREL 0002 0036 6187 0100</p>
+                    <p><strong>Bancă:</strong> Libra Bank</p>
+                    <p><strong>Sumă:</strong> {form_data['price_euro']} EUR</p>
+                    <p><strong>Descriere:</strong> Rendering #{form_data['student_name'][:10]}</p>
+                </div>
             </div>
             """, unsafe_allow_html=True)
             
@@ -613,7 +632,7 @@ def main():
             st.subheader("💳 Metode de Plată")
             st.markdown("""
             • **Revolut** - [revolut.me/stefanxuhy](https://revolut.me/stefanxuhy)
-            • **Transfer Bancar** 
+            • **Transfer Bancar** - Libra Bank
             • **PayPal** - bostiogstefania@gmail.com
             """)
     
@@ -810,8 +829,8 @@ def main():
             • **Revolut:** [revolut.me/stefanxuhy](https://revolut.me/stefanxuhy)
             • **Transfer Bancar:** 
               - Beneficiar: STEFANIA BOSTIOG
-              - IBAN: RO49BTRL01301202XXXXXXX
-              - Banca: Transilvania
+              - IBAN: RO60 BREL 0002 0036 6187 0100
+              - Bancă: Libra Bank
 
             **🕒 Program:**
             Luni - Vineri: 9:00 - 18:00
