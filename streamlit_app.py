@@ -37,11 +37,6 @@ st.markdown("""
     .status-processing { background-color: #cce5ff; padding: 10px; border-radius: 5px; }
     .status-completed { background-color: #d4edda; padding: 10px; border-radius: 5px; }
     .urgent { border-left: 5px solid #dc3545; padding-left: 10px; }
-    .price-estimate { background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745; }
-    .payment-box { background-color: #e8f5e8; padding: 20px; border-radius: 10px; border: 2px solid #28a745; }
-    .countdown { background-color: #fff3cd; padding: 15px; border-radius: 8px; text-align: center; font-weight: bold; }
-    .revolut-link { background-color: #0075eb; color: white; padding: 15px; border-radius: 10px; text-align: center; margin: 10px 0; }
-    .bank-details { background-color: #f0f8ff; padding: 15px; border-radius: 8px; border-left: 4px solid #1f77b4; margin: 10px 0; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -181,11 +176,6 @@ class RenderingService:
                 EMAIL_FROM=emailul.tau@gmail.com
                 EMAIL_PASSWORD=parola_ta_de_aplicatie
                 ```
-                
-                **Instrucțiuni:**
-                1. Creează un fișier `.env` în același folder cu aplicația
-                2. Adaugă variabilele de mai sus cu datele tale
-                3. Pentru Gmail, folosește o "App Password" în loc de parola normală
                 """)
                 return
             
@@ -443,16 +433,19 @@ def main():
                     delivery_date = datetime.now() + timedelta(days=estimated_days)
                     
                     st.markdown("---")
-                    st.markdown(f"""
-                    <div class="price-estimate">
-                        <h3>💰 Total: {price_euro} EUR</h3>
-                        <p><strong>⏰ Timp de livrare:</strong> {estimated_days} zile lucrătoare</p>
-                        <p><strong>📅 Data estimată:</strong> {delivery_date.strftime('%d %B %Y')}</p>
-                        <p><strong>🎯 Rezoluție:</strong> {resolution}</p>
-                        <p><strong>🖼️ Randări:</strong> {render_count}</p>
-                        <p><strong>⚡ Urgent:</strong> {'Da (+50%)' if is_urgent else 'Nu'}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(
+                        f"""
+                        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 4px solid #28a745; margin: 15px 0;">
+                            <h3 style="color: #28a745;">💰 Total: {price_euro} EUR</h3>
+                            <p><strong>⏰ Timp de livrare:</strong> {estimated_days} zile lucrătoare</p>
+                            <p><strong>📅 Data estimată:</strong> {delivery_date.strftime('%d %B %Y')}</p>
+                            <p><strong>🎯 Rezoluție:</strong> {resolution}</p>
+                            <p><strong>🖼️ Randări:</strong> {render_count}</p>
+                            <p><strong>⚡ Urgent:</strong> {'Da (+50%)' if is_urgent else 'Nu'}</p>
+                        </div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
                 
                 st.markdown("** * Câmpuri obligatorii*")
                 
@@ -490,32 +483,40 @@ def main():
             # PAGINA DE PLATĂ (după submit formular)
             form_data = st.session_state.form_data
             
-            st.markdown(f"""
-            <div class="payment-box">
-                <h2>💳 Finalizează Comanda</h2>
-                <h3>Total de plată: {form_data['price_euro']} EUR</h3>
-                
-                <h4>📋 Alege metoda de plată:</h4>
-                
-                <div class="revolut-link">
-                    <h4>🚀 Plată Rapidă cu Revolut</h4>
-                    <p><strong>Click pe link pentru a plăti:</strong></p>
-                    <a href="https://revolut.me/stefanxuhy" target="_blank" style="color: white; text-decoration: none; font-size: 1.2em;">
-                        <strong>https://revolut.me/stefanxuhy</strong>
+            st.markdown("### 💳 Finalizează Comanda")
+            st.markdown(f"#### Total de plată: {form_data['price_euro']} EUR")
+            
+            st.markdown("#### 📋 Alege metoda de plată:")
+
+            # Revolut Link
+            st.markdown(
+                f"""
+                <div style="background-color: #0075eb; color: white; padding: 20px; border-radius: 10px; text-align: center; margin: 15px 0;">
+                    <h3 style="color: white; margin-bottom: 15px;">🚀 Plată Rapidă cu Revolut</h3>
+                    <p style="font-size: 1.1em;"><strong>Click pe link pentru a plăti:</strong></p>
+                    <a href="https://revolut.me/stefanxuhy" target="_blank" style="color: white; text-decoration: none; font-size: 1.3em; font-weight: bold;">
+                        https://revolut.me/stefanxuhy
                     </a>
-                    <p><em>Sumă: {form_data['price_euro']} EUR</em></p>
+                    <p style="margin-top: 10px;"><em>Sumă: {form_data['price_euro']} EUR</em></p>
                 </div>
-                
-                <div class="bank-details">
-                    <h4>🏦 Transfer Bancar</h4>
+                """, 
+                unsafe_allow_html=True
+            )
+
+            # Bank Details
+            st.markdown(
+                f"""
+                <div style="background-color: #f0f8ff; padding: 20px; border-radius: 10px; border-left: 4px solid #1f77b4; margin: 15px 0;">
+                    <h3 style="color: #1f77b4; margin-bottom: 15px;">🏦 Transfer Bancar</h3>
                     <p><strong>Beneficiar:</strong> STEFANIA BOSTIOG</p>
                     <p><strong>IBAN:</strong> RO60 BREL 0002 0036 6187 0100</p>
                     <p><strong>Bancă:</strong> Libra Bank</p>
                     <p><strong>Sumă:</strong> {form_data['price_euro']} EUR</p>
                     <p><strong>Descriere:</strong> Rendering #{form_data['student_name'][:10]}</p>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, 
+                unsafe_allow_html=True
+            )
             
             # Afișează detalii comanda
             st.subheader("📋 Detalii Comanda")
@@ -569,13 +570,16 @@ def main():
                                 st.balloons()
                                 
                                 # Afișează countdown
-                                st.markdown(f"""
-                                <div class="countdown">
-                                    <h3>⏳ Timp rămas până la livrare</h3>
-                                    <h2>{form_data['estimated_days']} zile lucrătoare</h2>
-                                    <p>Data estimată: {form_data['delivery_date'].strftime('%d %B %Y')}</p>
-                                </div>
-                                """, unsafe_allow_html=True)
+                                st.markdown(
+                                    f"""
+                                    <div style="background-color: #fff3cd; padding: 20px; border-radius: 10px; text-align: center; margin: 15px 0;">
+                                        <h3>⏳ Timp rămas până la livrare</h3>
+                                        <h2>{form_data['estimated_days']} zile lucrătoare</h2>
+                                        <p>Data estimată: {form_data['delivery_date'].strftime('%d %B %Y')}</p>
+                                    </div>
+                                    """, 
+                                    unsafe_allow_html=True
+                                )
                                 
                                 st.info(f"""
                                 **📧 Ce urmează:**
