@@ -184,14 +184,7 @@ class RenderingService:
                 return
             
             # Email către client
-            msg_client = MIMEMultipart()
-            msg_client['From'] = email_from
-            msg_client['To'] = order_data['email']
-            msg_client['Subject'] = f"🧾 Chitanță Rendering #{order_id} - {order_data['price_euro']} EUR"
-            
-            delivery_date = datetime.now() + timedelta(days=order_data['estimated_days'])
-            
-            body_client = f"""
+            msg_client = MIMEText(f"""
             🧾 CHIȚANȚĂ PLATĂ RENDERING SERVICE
 
             Mulțumim pentru comanda ta, {order_data['student_name']}!
@@ -214,7 +207,7 @@ class RenderingService:
             
             ⏰ DETALII LIVRARE:
             • Timp estimat: {order_data['estimated_days']} zile lucrătoare
-            • Data estimată livrare: {delivery_date.strftime('%d.%m.%Y')}
+            • Data estimată livrare: {(datetime.now() + timedelta(days=order_data['estimated_days'])).strftime('%d.%m.%Y')}
             • Status: ⏳ În așteptare procesare
             
             📋 SPECIFICAȚII:
@@ -231,17 +224,14 @@ class RenderingService:
             
             Mulțumim pentru încredere!
             🏗️ Echipa Rendering Service ARH
-            """
+            """)
             
-            msg_client.attach(MIMEText(body_client, 'plain'))
+            msg_client['From'] = email_from
+            msg_client['To'] = order_data['email']
+            msg_client['Subject'] = f"🧾 Chitanță Rendering #{order_id} - {order_data['price_euro']} EUR"
             
             # Email către administrator
-            msg_admin = MIMEMultipart()
-            msg_admin['From'] = email_from
-            msg_admin['To'] = "bostiogstefania@gmail.com"
-            msg_admin['Subject'] = f"💰 COMANDA NOUĂ #{order_id} - {order_data['price_euro']} EUR"
-            
-            body_admin = f"""
+            msg_admin = MIMEText(f"""
             💰 COMANDA NOUĂ PLĂTITĂ!
 
             📋 DETALII CLIENT:
@@ -268,10 +258,12 @@ class RenderingService:
             2. Confirmă clientului primirea
             3. Începe procesarea
             
-            ⏰ Termen limită: {delivery_date.strftime('%d.%m.%Y')}
-            """
+            ⏰ Termen limită: {(datetime.now() + timedelta(days=order_data['estimated_days'])).strftime('%d.%m.%Y')}
+            """)
             
-            msg_admin.attach(MIMEText(body_admin, 'plain'))
+            msg_admin['From'] = email_from
+            msg_admin['To'] = "bostiogstefania@gmail.com"
+            msg_admin['Subject'] = f"💰 COMANDA NOUĂ #{order_id} - {order_data['price_euro']} EUR"
             
             # Trimite ambele email-uri
             server = smtplib.SMTP(smtp_server, smtp_port)
@@ -732,7 +724,7 @@ def main():
             • **PayPal** - bostiogstefania@gmail.com
             """)
     
-    # Secțiunea de administrare (include și Dashboard acum)
+    # Secțiunea de administrare
     elif menu == "⚙️ Administrare":
         st.header("⚙️ Administrare Comenzi")
         
@@ -786,31 +778,45 @@ def main():
                                             st.rerun()
                                 with col_permanent:
                                     if st.button(f"🗑️ Șterge definitiv", key=f"perm_{order['id']}"):
-                                        if st.checkbox(f"❌ Confirm ștergerea definitivă a comenzii #{order['id']}", 
-                                                     key=f"confirm_perm_{order['id']}"):
+                                        # Folosim session state pentru a gestiona confirmarea
+                                        if f"confirm_perm_{order['id']}" not in st.session_state:
+                                            st.session_state[f"confirm_perm_{order['id']}"] = False
+                                        
+                                        if st.session_state[f"confirm_perm_{order['id']}"]:
                                             if service.permanently_delete_order(order['id']):
                                                 st.success(f"✅ Comanda #{order['id']} a fost ștearsă definitiv!")
+                                                st.session_state[f"confirm_perm_{order['id']}"] = False
                                                 time.sleep(1)
                                                 st.rerun()
+                                        else:
+                                            st.session_state[f"confirm_perm_{order['id']}"] = True
+                                            st.warning(f"❌ Sigur vrei să ștergi definitiv comanda #{order['id']}?")
                             
                             st.divider()
                     
                     # Buton pentru ștergerea tuturor comenzilor șterse
                     if st.button("🗑️ Șterge toate comenzile șterse definitiv", type="secondary"):
-                        if st.checkbox("❌ CONFIRM: Șterg definitiv TOATE comenzile marcate ca șterse"):
+                        if "confirm_all_deleted" not in st.session_state:
+                            st.session_state.confirm_all_deleted = False
+                        
+                        if st.session_state.confirm_all_deleted:
                             success_count = 0
                             for order_id in deleted_orders['id']:
                                 if service.permanently_delete_order(order_id):
                                     success_count += 1
                             st.success(f"✅ {success_count} comenzi șterse definitiv!")
+                            st.session_state.confirm_all_deleted = False
                             time.sleep(1)
                             st.rerun()
+                        else:
+                            st.session_state.confirm_all_deleted = True
+                            st.error("❌ CONFIRM: Sigur vrei să ștergi definitiv TOATE comenzile marcate ca șterse?")
                 
                 else:
                     st.info("🎉 Nu există comenzi șterse în sistem.")
             
             else:
-                # Restul secțiunilor de administrare rămân la fel
+                # Restul secțiunilor de administrare
                 orders_df = service.get_orders()
                 
                 if not orders_df.empty:
@@ -889,15 +895,43 @@ def main():
                                     st.markdown(f"**⏳ {days_left}z rămase**")
                                 
                                 with col4:
-                                    # Buton pentru ștergere
-                                    if st.button(f"🗑️", key=f"delete_{order['id']}"):
-                                        reason = st.text_input(f"Motiv ștergere #{order['id']}:", 
-                                                             placeholder="ex: anulat de client, eroare, etc.",
-                                                             key=f"reason_{order['id']}")
-                                        if st.button(f"✅ Confirm ștergere", key=f"confirm_del_{order['id']}"):
-                                            if service.delete_order(order['id'], reason):
-                                                st.success(f"✅ Comanda #{order['id']} a fost ștearsă!")
-                                                time.sleep(1)
+                                    # Buton pentru ștergere cu gestionare mai bună a stării
+                                    delete_key = f"delete_{order['id']}"
+                                    confirm_key = f"confirm_del_{order['id']}"
+                                    reason_key = f"reason_{order['id']}"
+                                    
+                                    # Inițializare session state pentru acest buton
+                                    if delete_key not in st.session_state:
+                                        st.session_state[delete_key] = False
+                                    if confirm_key not in st.session_state:
+                                        st.session_state[confirm_key] = False
+                                    
+                                    if not st.session_state[delete_key]:
+                                        if st.button("🗑️", key=delete_key):
+                                            st.session_state[delete_key] = True
+                                            st.rerun()
+                                    else:
+                                        reason = st.text_input(
+                                            f"Motiv ștergere #{order['id']}:", 
+                                            placeholder="ex: anulat de client, eroare, etc.",
+                                            key=reason_key
+                                        )
+                                        col_confirm, col_cancel = st.columns(2)
+                                        with col_confirm:
+                                            if st.button("✅ Confirm", key=confirm_key):
+                                                if reason.strip():
+                                                    if service.delete_order(order['id'], reason):
+                                                        st.success(f"✅ Comanda #{order['id']} a fost ștearsă!")
+                                                        # Resetăm starea butoanelor
+                                                        st.session_state[delete_key] = False
+                                                        st.session_state[confirm_key] = False
+                                                        time.sleep(1)
+                                                        st.rerun()
+                                                else:
+                                                    st.error("⚠️ Te rog introdu un motiv pentru ștergere!")
+                                        with col_cancel:
+                                            if st.button("❌ Anulează", key=f"cancel_{order['id']}"):
+                                                st.session_state[delete_key] = False
                                                 st.rerun()
                                 
                                 st.divider()
@@ -942,20 +976,45 @@ def main():
                                     
                                     col_btn1, col_btn2 = st.columns(2)
                                     with col_btn1:
-                                        if st.button(f"💾 Salvează #{order['id']}", key=f"btn_{order['id']}"):
+                                        if st.button(f"💾 Salvează", key=f"btn_save_{order['id']}"):
                                             if service.update_order_status(order['id'], new_status, download_link or None):
                                                 st.success(f"✅ Comanda #{order['id']} actualizată!")
                                                 time.sleep(1)
                                                 st.rerun()
+                                    
                                     with col_btn2:
-                                        if st.button(f"🗑️ Șterge #{order['id']}", key=f"del_btn_{order['id']}"):
-                                            reason = st.text_input(f"Motiv ștergere:", 
-                                                                 placeholder="ex: anulat de client",
-                                                                 key=f"del_reason_{order['id']}")
-                                            if st.button(f"✅ Confirm ștergere", key=f"confirm_del_btn_{order['id']}"):
-                                                if service.delete_order(order['id'], reason):
-                                                    st.success(f"✅ Comanda #{order['id']} ștearsă!")
-                                                    time.sleep(1)
+                                        # Gestionare mai bună pentru butonul de ștergere
+                                        del_btn_key = f"del_btn_{order['id']}"
+                                        del_confirm_key = f"del_confirm_{order['id']}"
+                                        del_reason_key = f"del_reason_{order['id']}"
+                                        
+                                        if del_btn_key not in st.session_state:
+                                            st.session_state[del_btn_key] = False
+                                            
+                                        if not st.session_state[del_btn_key]:
+                                            if st.button(f"🗑️ Șterge", key=del_btn_key):
+                                                st.session_state[del_btn_key] = True
+                                                st.rerun()
+                                        else:
+                                            reason = st.text_input(
+                                                f"Motiv ștergere:", 
+                                                placeholder="ex: anulat de client",
+                                                key=del_reason_key
+                                            )
+                                            col_del_confirm, col_del_cancel = st.columns(2)
+                                            with col_del_confirm:
+                                                if st.button(f"✅ Confirm ștergere", key=del_confirm_key):
+                                                    if reason.strip():
+                                                        if service.delete_order(order['id'], reason):
+                                                            st.success(f"✅ Comanda #{order['id']} ștearsă!")
+                                                            st.session_state[del_btn_key] = False
+                                                            time.sleep(1)
+                                                            st.rerun()
+                                                    else:
+                                                        st.error("⚠️ Te rog introdu un motiv pentru ștergere!")
+                                            with col_del_cancel:
+                                                if st.button("❌ Anulează", key=f"del_cancel_{order['id']}"):
+                                                    st.session_state[del_btn_key] = False
                                                     st.rerun()
                     
                     else:  # STATISTICI
