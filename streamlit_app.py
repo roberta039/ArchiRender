@@ -183,7 +183,8 @@ class RenderingService:
                     stages_completed INTEGER DEFAULT 0,
                     total_stages INTEGER DEFAULT 6,
                     progress_email_sent BOOLEAN DEFAULT FALSE,
-                    completed_email_sent BOOLEAN DEFAULT FALSE
+                    completed_email_sent BOOLEAN DEFAULT FALSE,
+                    status_email_sent BOOLEAN DEFAULT FALSE
                 )
             ''')
             
@@ -328,7 +329,8 @@ class RenderingService:
                 return
             
             # Email către client
-            msg_client = MIMEText(f"""
+            msg_client = MIMEMultipart()
+            msg_client.attach(MIMEText(f"""
             🧾 CHIȚANȚĂ PLATĂ RENDERING SERVICE
 
             Mulțumim pentru comanda ta, {order_data['student_name']}!
@@ -368,14 +370,15 @@ class RenderingService:
             
             Mulțumim pentru încredere!
             🏗️ Echipa Rendering Service ARH
-            """)
+            """, 'plain', 'utf-8'))
             
             msg_client['From'] = email_from
             msg_client['To'] = order_data['email']
             msg_client['Subject'] = f"🧾 Chitanță Rendering #{order_id} - {order_data['price_euro']} EUR"
             
             # Email către administrator
-            msg_admin = MIMEText(f"""
+            msg_admin = MIMEMultipart()
+            msg_admin.attach(MIMEText(f"""
             💰 COMANDA NOUĂ PLĂTITĂ!
 
             📋 DETALII CLIENT:
@@ -403,7 +406,7 @@ class RenderingService:
             3. Începe procesarea
             
             ⏰ Termen limită: {(datetime.now() + timedelta(days=order_data['estimated_days'])).strftime('%d.%m.%Y')}
-            """)
+            """, 'plain', 'utf-8'))
             
             msg_admin['From'] = email_from
             msg_admin['To'] = "bostiogstefania@gmail.com"
@@ -429,6 +432,70 @@ class RenderingService:
         except Exception as e:
             st.warning(f"⚠️ Emailurile nu au putut fi trimise: {e}")
 
+    def send_status_email(self, order_data, old_status, new_status):
+        """Trimite email cu notificare schimbare status"""
+        try:
+            smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+            smtp_port = int(os.getenv('SMTP_PORT', 587))
+            email_from = os.getenv('EMAIL_FROM', '')
+            email_password = os.getenv('EMAIL_PASSWORD', '')
+            
+            if not all([smtp_server, email_from, email_password]):
+                return False
+            
+            status_messages = {
+                'pending': '⏳ În așteptare procesare',
+                'processing': '🚀 Procesare în curs', 
+                'completed': '✅ Finalizat'
+            }
+            
+            msg = MIMEMultipart()
+            msg.attach(MIMEText(f"""
+            🔔 ACTUALIZARE STATUS - Rendering #{order_data['id']}
+
+            Bună {order_data['student_name']},
+            
+            Statusul comenzii tale s-a actualizat!
+            
+            📊 **STATUS NOU:**
+            • De la: {status_messages.get(old_status, old_status)}
+            • La: {status_messages.get(new_status, new_status)}
+            
+            🎯 **DETALII COMANDA:**
+            • ID Comandă: #{order_data['id']}
+            • Software: {order_data['software']}
+            • Rezoluție: {order_data['resolution']}
+            • Număr randări: {order_data['render_count']}
+            • Progres curent: {order_data['progress']}%
+            
+            ⏰ **TERMEN ESTIMAT:**
+            Data estimată de finalizare: {order_data['deadline']}
+            
+            {'📥 **DESCĂRCARE:**' + chr(10) + 'Proiectul tău este gata! Poți descărca fișierele de aici:' + chr(10) + order_data['download_link'] if new_status == 'completed' and order_data.get('download_link') else ''}
+            
+            📞 **SUPPORT:**
+            • Email: bostiogstefania@gmail.com
+            • Telefon: +40 724 911 299
+            
+            Mulțumim pentru încredere!
+            🏗️ Echipa Rendering Service ARH
+            """, 'plain', 'utf-8'))
+            
+            msg['From'] = email_from
+            msg['To'] = order_data['email']
+            msg['Subject'] = f"🔔 Status Actualizat - Rendering #{order_data['id']} - {status_messages.get(new_status, new_status)}"
+            
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(email_from, email_password)
+            server.send_message(msg)
+            server.quit()
+            
+            return True
+        except Exception as e:
+            print(f"⚠️ Eroare la trimiterea email-ului de status: {e}")
+            return False
+
     def send_progress_email(self, order_data, progress, current_stage, notes=""):
         """Trimite email cu notificare progres către client"""
         try:
@@ -440,7 +507,8 @@ class RenderingService:
             if not all([smtp_server, email_from, email_password]):
                 return False
             
-            msg = MIMEText(f"""
+            msg = MIMEMultipart()
+            msg.attach(MIMEText(f"""
             🚀 PROCESARE ÎN CURS - Rendering #{order_data['id']}
 
             Bună {order_data['student_name']},
@@ -473,7 +541,7 @@ class RenderingService:
             
             Mulțumim pentru încredere!
             🏗️ Echipa Rendering Service ARH
-            """)
+            """, 'plain', 'utf-8'))
             
             msg['From'] = email_from
             msg['To'] = order_data['email']
@@ -514,7 +582,8 @@ class RenderingService:
                 Proiectul tău este gata! Vei primi link-ul de descărcare în scurt timp.
                 """
             
-            msg = MIMEText(f"""
+            msg = MIMEMultipart()
+            msg.attach(MIMEText(f"""
             ✅ RENDERING FINALIZAT - #{order_data['id']}
 
             Bună {order_data['student_name']},
@@ -546,7 +615,7 @@ class RenderingService:
             
             Mulțumim că ai ales serviciile noastre!
             🏗️ Echipa Rendering Service ARH
-            """)
+            """, 'plain', 'utf-8'))
             
             msg['From'] = email_from
             msg['To'] = order_data['email']
@@ -598,8 +667,16 @@ class RenderingService:
             return pd.DataFrame()
     
     def update_order_status(self, order_id, status, download_link=None):
-        """Actualizează statusul unei comenzi"""
+        """Actualizează statusul unei comenzi și trimite notificări"""
         try:
+            # Obține starea anterioară
+            order = self.get_order_by_id(order_id)
+            if order.empty:
+                return False
+                
+            old_status = order.iloc[0]['status']
+            order_data = order.iloc[0]
+            
             conn = sqlite3.connect('rendering_orders.db')
             cursor = conn.cursor()
             
@@ -620,14 +697,26 @@ class RenderingService:
             conn.close()
             
             # Adaugă notificare pentru schimbarea statusului
-            order = self.get_order_by_id(order_id)
-            if not order.empty:
-                self.notification_service.add_notification(
-                    order_id,
-                    f"📊 Status comanda actualizat: {status.upper()}",
-                    "info",
-                    order.iloc[0]['email']
-                )
+            self.notification_service.add_notification(
+                order_id,
+                f"📊 Status comanda actualizat: {old_status.upper()} → {status.upper()}",
+                "info",
+                order_data['email']
+            )
+            
+            # Trimite email de notificare status DOAR dacă statusul s-a schimbat
+            if old_status != status:
+                # Verifică dacă email-ul de status a fost deja trimis pentru această schimbare
+                if not order_data.get('status_email_sent', False) or True:  # Forțează trimiterea pentru testare
+                    email_sent = self.send_status_email(order_data, old_status, status)
+                    
+                    # Marchează că email-ul de status a fost trimis
+                    if email_sent:
+                        conn = sqlite3.connect('rendering_orders.db')
+                        cursor = conn.cursor()
+                        cursor.execute('UPDATE orders SET status_email_sent = 1 WHERE id = ?', (order_id,))
+                        conn.commit()
+                        conn.close()
             
             return True
         except Error as e:
