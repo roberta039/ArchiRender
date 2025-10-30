@@ -46,6 +46,17 @@ st.markdown("""
     .notification-success { background-color: #d4edda; border-left: 5px solid #28a745; }
     .notification-warning { background-color: #fff3cd; border-left: 5px solid #ffc107; }
     .notification-error { background-color: #f8d7da; border-left: 5px solid #dc3545; }
+    .admin-hidden {
+        background: transparent;
+        border: none;
+        color: #1f77b4;
+        cursor: pointer;
+        text-decoration: none;
+        font-weight: bold;
+    }
+    .admin-hidden:hover {
+        text-decoration: underline;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -918,24 +929,61 @@ def main():
         <div style="text-align: center;">
             <h1>🏗️</h1>
             <h3>Rendering Service</h3>
-            <p><em>Profesional • Rapid • Calitate</em></p>
+            <p><em>
+                <button class="admin-hidden" onclick="this.parentNode.querySelector('input').value='admin'">Profesional</button> • Rapid • Calitate
+            </em></p>
+            <input type="text" style="display: none;">
         </div>
         """, unsafe_allow_html=True)
         
-        st.title("Navigare")
-        menu = st.radio("Alege secțiunea:", [
-            "📝 Comandă Rendering", 
-            "⚙️ Administrare",
-            "💰 Prețuri & Termene",
-            "📞 Contact",
-            "🔔 Notificări",
-            "📊 Tracking Progres"
-        ])
+        # Verifică dacă butonul de administrare a fost apăsat
+        if st.session_state.get('admin_clicked'):
+            menu = st.radio("Alege secțiunea:", [
+                "📝 Comandă Rendering", 
+                "⚙️ Administrare",
+                "💰 Prețuri & Termene",
+                "📞 Contact",
+                "🔔 Notificări",
+                "📊 Tracking Progres"
+            ])
+        else:
+            menu = st.radio("Alege secțiunea:", [
+                "📝 Comandă Rendering", 
+                "💰 Prețuri & Termene",
+                "📞 Contact",
+                "🔔 Notificări",
+                "📊 Tracking Progres"
+            ])
         
         st.markdown("---")
         st.markdown("**📞 Contact rapid:**")
         st.markdown("📧 bostiogstefania@gmail.com")
         st.markdown("📱 +40 724 911 299")
+        
+        # JavaScript pentru a detecta click-ul pe butonul ascuns
+        st.markdown("""
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const adminButton = document.querySelector('.admin-hidden');
+            if (adminButton) {
+                adminButton.addEventListener('click', function() {
+                    // Trimite o cerere către Streamlit pentru a seta session state
+                    fetch('/streamlit', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            'admin_clicked': true
+                        })
+                    }).then(() => {
+                        window.location.reload();
+                    });
+                });
+            }
+        });
+        </script>
+        """, unsafe_allow_html=True)
     
     # Secțiunea de comandă nouă
     if menu == "📝 Comandă Rendering":
