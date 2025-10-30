@@ -46,16 +46,31 @@ st.markdown("""
     .notification-success { background-color: #d4edda; border-left: 5px solid #28a745; }
     .notification-warning { background-color: #fff3cd; border-left: 5px solid #ffc107; }
     .notification-error { background-color: #f8d7da; border-left: 5px solid #dc3545; }
+    .slogan-text {
+        font-style: italic;
+        color: #666;
+        font-size: 14px;
+        font-family: 'Source Sans Pro', sans-serif;
+    }
     .admin-hidden {
         background: transparent;
         border: none;
-        color: #1f77b4;
+        color: #666;
         cursor: pointer;
         text-decoration: none;
-        font-weight: bold;
+        font-weight: normal;
+        font-style: italic;
+        font-size: 14px;
+        font-family: 'Source Sans Pro', sans-serif;
+        padding: 0;
+        margin: 0;
     }
     .admin-hidden:hover {
+        color: #1f77b4;
         text-decoration: underline;
+    }
+    .hidden-button {
+        display: none;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -929,15 +944,57 @@ def main():
         <div style="text-align: center;">
             <h1>🏗️</h1>
             <h3>Rendering Service</h3>
-            <p><em>
-                <button class="admin-hidden" onclick="this.parentNode.querySelector('input').value='admin'">Profesional</button> • Rapid • Calitate
-            </em></p>
-            <input type="text" style="display: none;">
         </div>
         """, unsafe_allow_html=True)
         
+        # Buton ascuns pentru administrare - folosim columns pentru a-l poziționa corect
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("Profesional", key="admin_hidden", help="Acces administrare"):
+                st.session_state.admin_clicked = True
+                st.rerun()
+        
+        st.markdown("""
+        <div style="text-align: center; margin-top: -35px;">
+            <p class="slogan-text">
+                <span style="color: #666;">Profesional</span> • 
+                <span style="color: #666;">Rapid</span> • 
+                <span style="color: #666;">Calitate</span>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Ascunde butonul vizual
+        st.markdown("""
+        <style>
+            div[data-testid="stButton"] button[kind="secondary"] {
+                background: transparent;
+                border: none;
+                color: transparent;
+                font-size: 14px;
+                height: 20px;
+                padding: 0;
+                margin: 0;
+                position: absolute;
+                top: 140px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 80px;
+                z-index: 1000;
+            }
+            div[data-testid="stButton"] button[kind="secondary"]:hover {
+                background: transparent;
+                border: none;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+        
         # Verifică dacă butonul de administrare a fost apăsat
-        if st.session_state.get('admin_clicked'):
+        if 'admin_clicked' not in st.session_state:
+            st.session_state.admin_clicked = False
+        
+        # Meniu condiționat
+        if st.session_state.admin_clicked:
             menu = st.radio("Alege secțiunea:", [
                 "📝 Comandă Rendering", 
                 "⚙️ Administrare",
@@ -959,32 +1016,8 @@ def main():
         st.markdown("**📞 Contact rapid:**")
         st.markdown("📧 bostiogstefania@gmail.com")
         st.markdown("📱 +40 724 911 299")
-        
-        # JavaScript pentru a detecta click-ul pe butonul ascuns
-        st.markdown("""
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const adminButton = document.querySelector('.admin-hidden');
-            if (adminButton) {
-                adminButton.addEventListener('click', function() {
-                    // Trimite o cerere către Streamlit pentru a seta session state
-                    fetch('/streamlit', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            'admin_clicked': true
-                        })
-                    }).then(() => {
-                        window.location.reload();
-                    });
-                });
-            }
-        });
-        </script>
-        """, unsafe_allow_html=True)
     
+    # Restul codului rămâne la fel...
     # Secțiunea de comandă nouă
     if menu == "📝 Comandă Rendering":
         st.header("🎨 Comandă Rendering Nouă")
