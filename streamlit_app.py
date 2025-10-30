@@ -55,16 +55,14 @@ st.markdown("""
         margin-top: -10px;
         margin-bottom: 20px;
     }
-    .hidden-admin-btn {
-        position: absolute;
-        top: 140px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 80px;
-        height: 20px;
-        opacity: 0;
+    .admin-trigger {
         cursor: pointer;
-        z-index: 1000;
+        padding: 2px 8px;
+        border-radius: 3px;
+        transition: background-color 0.3s;
+    }
+    .admin-trigger:hover {
+        background-color: rgba(31, 119, 180, 0.1);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -943,43 +941,43 @@ def main():
         
         # Container pentru slogan cu buton ascuns
         with st.container():
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                # Buton transparent peste cuvântul "Profesional"
-                if st.button("Profesional", key="admin_hidden", help="Click pentru acces administrare"):
-                    st.session_state.admin_clicked = True
-                    st.rerun()
-            
-            # Slogan text
+            # Slogan text cu trigger pentru admin
             st.markdown("""
-            <div style="text-align: center; margin-top: -35px;">
+            <div style="text-align: center; position: relative;">
                 <p class="slogan-text">
-                    <span style="color: #1f77b4; font-weight: bold;">Profesional</span> • 
+                    <span onclick="this.style.backgroundColor='rgba(31, 119, 180, 0.2)'; setTimeout(() => { this.style.backgroundColor='transparent' }, 300)" 
+                         style="color: #1f77b4; font-weight: bold; cursor: pointer; padding: 2px 8px; border-radius: 3px; transition: background-color 0.3s;" 
+                         onmouseover="this.style.backgroundColor='rgba(31, 119, 180, 0.1)'" 
+                         onmouseout="this.style.backgroundColor='transparent'">Profesional</span> • 
                     <span>Rapid</span> • 
                     <span>Calitate</span>
                 </p>
             </div>
             """, unsafe_allow_html=True)
-        
-        # Ascunde butonul vizual
-        st.markdown("""
-        <style>
-            div[data-testid="stButton"] button[kind="secondary"] {
-                background: transparent;
-                border: none;
-                color: transparent;
-                font-size: 14px;
-                height: 20px;
-                padding: 0;
-                margin: 0;
-                width: 80px;
-            }
-            div[data-testid="stButton"] button[kind="secondary"]:hover {
-                background: rgba(31, 119, 180, 0.1);
-                border: 1px dashed #1f77b4;
-            }
-        </style>
-        """, unsafe_allow_html=True)
+            
+            # Buton invizibil pentru captarea click-ului
+            if st.button("", key="admin_hidden_btn", help=""):
+                if 'admin_clicked' not in st.session_state:
+                    st.session_state.admin_clicked = False
+                st.session_state.admin_clicked = not st.session_state.admin_clicked
+                st.rerun()
+            
+            # Ascunde butonul complet
+            st.markdown("""
+            <style>
+                div[data-testid="stButton"] button[kind="secondary"][title=""] {
+                    position: absolute;
+                    top: 140px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 80px;
+                    height: 20px;
+                    opacity: 0;
+                    cursor: pointer;
+                    z-index: 1000;
+                }
+            </style>
+            """, unsafe_allow_html=True)
         
         # Verifică dacă butonul de administrare a fost apăsat
         if 'admin_clicked' not in st.session_state:
