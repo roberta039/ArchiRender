@@ -181,7 +181,9 @@ class RenderingService:
                     progress INTEGER DEFAULT 0,
                     current_stage TEXT DEFAULT 'În așteptare',
                     stages_completed INTEGER DEFAULT 0,
-                    total_stages INTEGER DEFAULT 6
+                    total_stages INTEGER DEFAULT 6,
+                    progress_email_sent BOOLEAN DEFAULT FALSE,
+                    completed_email_sent BOOLEAN DEFAULT FALSE
                 )
             ''')
             
@@ -352,9 +354,9 @@ class RenderingService:
             • Data estimată livrare: {(datetime.now() + timedelta(days=order_data['estimated_days'])).strftime('%d.%m.%Y')}
             • Status: ⏳ În așteptare procesare
             
-            🔔 URMEAZĂ PROGRESUL:
-            • Vei primi notificări la fiecare etapă
-            • Poți urmări progresul în timp real
+            🔔 NOTIFICĂRI:
+            • Vei primi o notificare când începe procesarea
+            • Vei primi o notificare când rendering-ul este gata
             • Link download va fi trimis la finalizare
             
             📋 SPECIFICAȚII:
@@ -428,7 +430,7 @@ class RenderingService:
             st.warning(f"⚠️ Emailurile nu au putut fi trimise: {e}")
 
     def send_progress_email(self, order_data, progress, current_stage, notes=""):
-        """Trimite email cu update progres către client"""
+        """Trimite email cu notificare progres către client"""
         try:
             smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
             smtp_port = int(os.getenv('SMTP_PORT', 587))
@@ -438,31 +440,17 @@ class RenderingService:
             if not all([smtp_server, email_from, email_password]):
                 return False
             
-            # Determină iconița și mesajul în funcție de progres
-            if progress <= 25:
-                icon = "📥"
-                status_msg = "Procesarea a început"
-            elif progress <= 50:
-                icon = "🎨"
-                status_msg = "Procesul este în desfășurare"
-            elif progress <= 75:
-                icon = "🚀"
-                status_msg = "Rendering în curs"
-            else:
-                icon = "✅"
-                status_msg = "Finalizare în curând"
-            
             msg = MIMEText(f"""
-            {icon} UPDATE PROGRES RENDERING #{order_data['id']}
+            🚀 PROCESARE ÎN CURS - Rendering #{order_data['id']}
 
             Bună {order_data['student_name']},
             
-            Proiectul tău de rendering avansează conform planului!
+            Procesarea rendering-ului tău a început!
             
             📊 **STADIUL ACTUAL:**
             • Progres: {progress}%
             • Etapă: {current_stage}
-            • Status: {status_msg}
+            • Status: Procesare în curs
             
             🎯 **DETALII COMANDA:**
             • ID Comandă: #{order_data['id']}
@@ -470,14 +458,14 @@ class RenderingService:
             • Rezoluție: {order_data['resolution']}
             • Număr randări: {order_data['render_count']}
             
-            📝 **DETALII TEHNICE:**
+            ⏰ **TERMEN ESTIMAT:**
+            Data estimată de finalizare: {order_data['deadline']}
+            
+            📝 **DETALII PROIECT:**
             {notes or 'Procesare în conformitate cu specificațiile tale'}
             
-            ⏰ **URMĂTOAREA ETAPĂ:**
-            Vei primi un nou update când progresul va avansa.
-            
-            🔔 **URMĂREȘTE PROGRESUL:**
-            Poți verifica progresul în orice moment folosind ID-ul comenzii (#{order_data['id']})
+            🔔 **URMĂTOAREA NOTIFICARE:**
+            Vei primi un email când rendering-ul va fi complet finalizat și gata pentru descărcare.
             
             📞 **SUPPORT:**
             • Email: bostiogstefania@gmail.com
@@ -489,7 +477,7 @@ class RenderingService:
             
             msg['From'] = email_from
             msg['To'] = order_data['email']
-            msg['Subject'] = f"{icon} Progres Rendering #{order_data['id']} - {progress}%"
+            msg['Subject'] = f"🚀 Procesare Rendering #{order_data['id']} - În curs"
             
             server = smtplib.SMTP(smtp_server, smtp_port)
             server.starttls()
@@ -500,6 +488,79 @@ class RenderingService:
             return True
         except Exception as e:
             print(f"⚠️ Eroare la trimiterea email-ului de progres: {e}")
+            return False
+
+    def send_completion_email(self, order_data, download_link=None):
+        """Trimite email cu notificare finalizare către client"""
+        try:
+            smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+            smtp_port = int(os.getenv('SMTP_PORT', 587))
+            email_from = os.getenv('EMAIL_FROM', '')
+            email_password = os.getenv('EMAIL_PASSWORD', '')
+            
+            if not all([smtp_server, email_from, email_password]):
+                return False
+            
+            download_section = ""
+            if download_link:
+                download_section = f"""
+                📥 **DESCĂRCARE:**
+                Proiectul tău este gata! Poți descărca fișierele de aici:
+                {download_link}
+                """
+            else:
+                download_section = """
+                📥 **DESCĂRCARE:**
+                Proiectul tău este gata! Vei primi link-ul de descărcare în scurt timp.
+                """
+            
+            msg = MIMEText(f"""
+            ✅ RENDERING FINALIZAT - #{order_data['id']}
+
+            Bună {order_data['student_name']},
+            
+            Rendering-ul tău este finalizat și gata!
+            
+            🎉 **PROIECT FINALIZAT:**
+            • Status: 100% Complet
+            • Data finalizare: {datetime.now().strftime('%d.%m.%Y %H:%M')}
+            • Calitate: Conform specificațiilor
+            
+            🎯 **DETALII COMANDA:**
+            • ID Comandă: #{order_data['id']}
+            • Software: {order_data['software']}
+            • Rezoluție: {order_data['resolution']}
+            • Număr randări: {order_data['render_count']}
+            
+            {download_section}
+            
+            📋 **SPECIFICAȚII PROCESATE:**
+            {order_data['requirements'] or 'Toate specificațiile au fost respectate'}
+            
+            ⭐ **FEEDBACK:**
+            Dacă ești mulțumit de rezultat, te rugăm să ne lași un review!
+            
+            📞 **SUPPORT:**
+            • Email: bostiogstefania@gmail.com
+            • Telefon: +40 724 911 299
+            
+            Mulțumim că ai ales serviciile noastre!
+            🏗️ Echipa Rendering Service ARH
+            """)
+            
+            msg['From'] = email_from
+            msg['To'] = order_data['email']
+            msg['Subject'] = f"✅ Rendering Finalizat #{order_data['id']} - Gata pentru descărcare"
+            
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(email_from, email_password)
+            server.send_message(msg)
+            server.quit()
+            
+            return True
+        except Exception as e:
+            print(f"⚠️ Eroare la trimiterea email-ului de finalizare: {e}")
             return False
     
     def get_orders(self, status=None, include_deleted=False):
@@ -579,6 +640,15 @@ class RenderingService:
             conn = sqlite3.connect('rendering_orders.db')
             cursor = conn.cursor()
             
+            # Obține starea anterioară pentru a verifica dacă trebuie să trimitem email
+            order = self.get_order_by_id(order_id)
+            if order.empty:
+                return False
+                
+            previous_progress = order.iloc[0]['progress']
+            progress_email_sent = order.iloc[0]['progress_email_sent']
+            completed_email_sent = order.iloc[0]['completed_email_sent']
+            
             # Calculează numărul de etape completate
             stages_completed = int((progress / 100) * 6)  # 6 etape totale
             
@@ -610,12 +680,31 @@ class RenderingService:
                     order_data['email']
                 )
                 
-                # Trimite email de progres doar pentru update-uri semnificative
-                # (nu trimite pentru fiecare modificare minoră)
-                significant_updates = [0, 17, 33, 50, 67, 83, 100]  # Etape semnificative
-                if progress in significant_updates:
-                    self.send_progress_email(order_data, progress, current_stage, notes)
+                # NOTIFICARE 1: Procesare începută (doar o dată)
+                if progress >= 10 and not progress_email_sent and previous_progress < 10:
+                    success = self.send_progress_email(order_data, progress, current_stage, notes)
+                    if success:
+                        # Marchează că email-ul de progres a fost trimis
+                        conn = sqlite3.connect('rendering_orders.db')
+                        cursor = conn.cursor()
+                        cursor.execute('UPDATE orders SET progress_email_sent = 1 WHERE id = ?', (order_id,))
+                        conn.commit()
+                        conn.close()
+                        print(f"✅ Email progres trimis pentru comanda #{order_id}")
                 
+                # NOTIFICARE 2: Finalizare (doar o dată)
+                if progress == 100 and not completed_email_sent:
+                    download_link = order_data['download_link']
+                    success = self.send_completion_email(order_data, download_link)
+                    if success:
+                        # Marchează că email-ul de finalizare a fost trimis
+                        conn = sqlite3.connect('rendering_orders.db')
+                        cursor = conn.cursor()
+                        cursor.execute('UPDATE orders SET completed_email_sent = 1 WHERE id = ?', (order_id,))
+                        conn.commit()
+                        conn.close()
+                        print(f"✅ Email finalizare trimis pentru comanda #{order_id}")
+            
             return True
         except Error as e:
             st.error(f"❌ Eroare la actualizarea progresului: {e}")
@@ -998,9 +1087,9 @@ def main():
                                 st.info(f"""
                                 **📧 Ce urmează:**
                                 1. ✅ Ai primit chitanța pe email
-                                2. 🔔 Vei primi notificări la fiecare etapă
-                                3. 📊 Poți urmări progresul în secțiunea "Tracking Progres"
-                                4. 🚀 Vom începe procesarea rendering-ului
+                                2. 🔔 Vei primi o notificare când începe procesarea
+                                3. 🔔 Vei primi o notificare când rendering-ul este gata
+                                4. 📊 Poți urmări progresul în secțiunea "Tracking Progres"
                                 5. 📥 Vei primi link de download la finalizare
                                 
                                 **📞 Pentru întrebări:** bostiogstefania@gmail.com
@@ -1245,6 +1334,8 @@ def main():
                                 st.write(f"**🖼️ Randări:** {order['render_count']}")
                                 st.write(f"**📊 Progres curent:** {order['progress']}%")
                                 st.write(f"**🎯 Stadiu curent:** {order['current_stage']}")
+                                st.write(f"**📧 Notificare progres:** {'✅ Trimis' if order['progress_email_sent'] else '❌ Nepreluat'}")
+                                st.write(f"**📧 Notificare finalizare:** {'✅ Trimis' if order['completed_email_sent'] else '❌ Nepreluat'}")
                             
                             with col2:
                                 # Actualizare progres
@@ -1264,7 +1355,7 @@ def main():
                                 
                                 if st.button(f"💾 Actualizează Progres #{order['id']}"):
                                     if service.update_progress(order['id'], new_progress, new_stage, notes):
-                                        st.success(f"✅ Progresul pentru comanda #{order['id']} a fost actualizat! Clientul va primi notificare pe email.")
+                                        st.success(f"✅ Progresul pentru comanda #{order['id']} a fost actualizat!")
                                         time.sleep(1)
                                         st.rerun()
                                 
@@ -1278,7 +1369,7 @@ def main():
                                                 "success",
                                                 order['email']
                                             )
-                                            st.success(f"✅ Comanda #{order['id']} a fost finalizată! Clientul a fost notificat.")
+                                            st.success(f"✅ Comanda #{order['id']} a fost finalizată!")
                                             time.sleep(1)
                                             st.rerun()
                 
@@ -1302,6 +1393,8 @@ def main():
                                 st.write(f"**🏫 Facultate:** {order.get('faculty', 'Nespecificată')}")
                                 st.write(f"**📊 Progres:** {order['progress']}%")
                                 st.write(f"**🎯 Stadiu:** {order['current_stage']}")
+                                st.write(f"**📧 Notificare progres:** {'✅ Trimis' if order['progress_email_sent'] else '❌ Nepreluat'}")
+                                st.write(f"**📧 Notificare finalizare:** {'✅ Trimis' if order['completed_email_sent'] else '❌ Nepreluat'}")
                                 
                                 # Afișare corectă fișier/link
                                 project_file = order.get('project_file')
