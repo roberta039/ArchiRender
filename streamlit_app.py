@@ -938,51 +938,55 @@ def main():
             <h3>Rendering Service</h3>
         </div>
         """, unsafe_allow_html=True)
-        
-        # Container pentru slogan cu buton ascuns
+    
+        # Container pentru slogan
         with st.container():
-            # Slogan text cu trigger pentru admin
+            # Creăm un container pentru slogan cu buton invizibil
             st.markdown("""
-            <div style="text-align: center; position: relative;">
-                <p class="slogan-text">
-                    <span onclick="this.style.backgroundColor='rgba(31, 119, 180, 0.2)'; setTimeout(() => { this.style.backgroundColor='transparent' }, 300)" 
-                         style="color: #1f77b4; font-weight: bold; cursor: pointer; padding: 2px 8px; border-radius: 3px; transition: background-color 0.3s;" 
-                         onmouseover="this.style.backgroundColor='rgba(31, 119, 180, 0.1)'" 
-                         onmouseout="this.style.backgroundColor='transparent'">Profesional</span> • 
+            <div style="text-align: center; position: relative; margin: 10px 0 20px 0;">
+                <p class="slogan-text" style="margin: 0; padding: 10px 0;">
+                    <span style="color: #1f77b4; font-weight: bold;">Profesional</span> • 
                     <span>Rapid</span> • 
                     <span>Calitate</span>
                 </p>
             </div>
             """, unsafe_allow_html=True)
-            
-            # Buton invizibil pentru captarea click-ului
-            if st.button("", key="admin_hidden_btn", help=""):
-                if 'admin_clicked' not in st.session_state:
-                    st.session_state.admin_clicked = False
-                st.session_state.admin_clicked = not st.session_state.admin_clicked
-                st.rerun()
-            
-            # Ascunde butonul complet
+        
+            # Buton invizibil peste cuvântul "Profesional"
+            col1, col2, col3 = st.columns([3, 1, 3])
+            with col2:
+                if st.button("🔓", key="admin_hidden_btn", help="Acces administrare"):
+                    if 'admin_clicked' not in st.session_state:
+                        st.session_state.admin_clicked = False
+                    st.session_state.admin_clicked = not st.session_state.admin_clicked
+                    st.rerun()
+        
+            # Ascunde butonul să fie mai discret
             st.markdown("""
             <style>
-                div[data-testid="stButton"] button[kind="secondary"][title=""] {
-                    position: absolute;
-                    top: 140px;
-                    left: 50%;
-                    transform: translateX(-50%);
+                div[data-testid="stButton"] button[kind="secondary"] {
+                    background: transparent;
+                    border: 1px dashed #1f77b4;
+                    color: transparent;
+                    font-size: 12px;
+                    height: 25px;
                     width: 80px;
-                    height: 20px;
-                    opacity: 0;
-                    cursor: pointer;
-                    z-index: 1000;
+                    opacity: 0.3;
+                    transition: opacity 0.3s;
+                    margin-top: -40px;
+                    margin-bottom: 15px;
+                }
+                div[data-testid="stButton"] button[kind="secondary"]:hover {
+                    opacity: 0.6;
+                    background: rgba(31, 119, 180, 0.1);
                 }
             </style>
             """, unsafe_allow_html=True)
-        
+    
         # Verifică dacă butonul de administrare a fost apăsat
         if 'admin_clicked' not in st.session_state:
             st.session_state.admin_clicked = False
-        
+    
         # Meniu condiționat
         if st.session_state.admin_clicked:
             menu = st.radio("Alege secțiunea:", [
@@ -1001,7 +1005,7 @@ def main():
                 "🔔 Notificări",
                 "📊 Tracking Progres"
             ])
-        
+    
         st.markdown("---")
         st.markdown("**📞 Contact rapid:**")
         st.markdown("📧 bostiogstefania@gmail.com")
